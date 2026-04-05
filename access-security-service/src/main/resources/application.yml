@@ -1,0 +1,72 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: access-security-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/platform_db}
+    # Local dev: localhost:5432/platform_db
+    # Docker: postgres:5432/platform_db (set via SPRING_DATASOURCE_URL env var)
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
+
+# ==========================================================================
+# RESTORE PRODUCTION — KEYCLOAK CONFIGURATION
+# ==========================================================================
+# No issuer-uri auto-config. ValidateToken (Nimbus SignedJWT.parse + RSASSAVerifier)
+# manually fetches JWKS from /realms/{tenant}/protocol/openid-connect/certs.
+# CustomAuthenticationManager wraps this via .opaqueToken().authenticationManager().
+#
+# keycloak.base-url: Base URL for JWKS and Admin API endpoints
+# keycloak.admin.*: Master realm admin credentials (manages all tenants)
+# keycloak.auth.*: Client credentials for proxying user auth requests
+keycloak:
+  base-url: ${KEYCLOAK_BASE_URL:http://localhost:8080}
+  admin:
+    server-url: ${KEYCLOAK_BASE_URL:http://localhost:8080}
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+  auth:
+    client-id: ${KEYCLOAK_AUTH_CLIENT_ID:platform-backend}
+    client-secret: ${KEYCLOAK_AUTH_CLIENT_SECRET:}
+
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.value}
+    status-page-url-path: /actuator/info
+    health-check-url-path: /actuator/health
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.kedar.kapse: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,metrics,loggers"
+  endpoint:
+    health:
+      show-details: always

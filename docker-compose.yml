@@ -1,0 +1,218 @@
+services:
+  service-registry:
+    build: ./service-registry
+    container_name: service-registry
+    ports:
+      - "8761:8761"
+    networks:
+      - platform-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-platform_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - platform-network
+
+  # ==========================================================================
+  # KEYCLOAK — Central Authentication & Authorization Server
+  # ==========================================================================
+  # Multi-tenant setup: each tenant gets its own Keycloak realm.
+  # Realm JSON files are auto-imported on first startup.
+  # Admin console: http://localhost:8080/admin (admin/admin)
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    container_name: keycloak
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-platform_db}
+      - KC_DB_USERNAME=${POSTGRES_USER:-postgres}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - KC_HEALTH_ENABLED=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realms:/opt/keycloak/data/import:ro
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - platform-network
+
+  access-security-service:
+    build: ./access-security-service
+    container_name: access-security-service
+    ports:
+      - "8082:8082"
+    environment:
+      - EUREKA_CLIENT_ENABLED=true
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-platform_db}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # Multi-tenant Keycloak: services resolve realm dynamically from X-TENANT-ID header
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
+      - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KEYCLOAK_AUTH_CLIENT_SECRET=${KEYCLOAK_AUTH_CLIENT_SECRET:-hospital-a-secret-change-me}
+    depends_on:
+      keycloak:
+        condition: service_started
+      service-registry:
+        condition: service_started
+      postgres:
+        condition: service_started
+    networks:
+      - platform-network
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8085:8085"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
+    depends_on:
+      - service-registry
+      - keycloak
+    networks:
+      - platform-network
+
+  admin-service:
+    build: ./admin-service
+    container_name: admin-service
+    ports:
+      - "8084:8084"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
+    depends_on:
+      - service-registry
+      - keycloak
+    networks:
+      - platform-network
+
+  business-service:
+    build: ./business-service
+    container_name: business-service
+    ports:
+      - "8081:8081"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-platform_db}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - SPRING_DATA_REDIS_HOST=platform-redis
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
+    depends_on:
+      - service-registry
+      - postgres
+      - redis
+      - kafka
+      - keycloak
+    networks:
+      - platform-network
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8083:8083"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
+    depends_on:
+      - service-registry
+      - kafka
+      - keycloak
+    networks:
+      - platform-network
+
+  admin-portal:
+    build: ./admin-portal
+    container_name: admin-portal
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - platform-network
+
+  provider-portal:
+    build: ./provider-portal
+    container_name: provider-portal
+    ports:
+      - "3001:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - platform-network
+
+  patient-portal:
+    build: ./patient-portal
+    container_name: patient-portal
+    ports:
+      - "3002:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - platform-network
+
+  redis:
+    image: redis:alpine
+    container_name: platform-redis
+    networks:
+      - platform-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - platform-network
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - platform-network
+
+volumes:
+  postgres-data:
+
+networks:
+  platform-network:
+    driver: bridge

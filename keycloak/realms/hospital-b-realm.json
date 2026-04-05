@@ -1,0 +1,245 @@
+{
+  "realm": "hospital-b",
+  "enabled": true,
+  "displayName": "Hospital B - Metro Health",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "System administrator - full platform control",
+        "composite": false
+      },
+      {
+        "name": "PROVIDER",
+        "description": "Healthcare provider organization - manages staff",
+        "composite": false
+      },
+      {
+        "name": "THERAPIST",
+        "description": "Conducts therapy sessions with patients",
+        "composite": false
+      },
+      {
+        "name": "PHYSICIAN",
+        "description": "Supervises treatment plans, prescribes medication",
+        "composite": false
+      },
+      {
+        "name": "NURSE",
+        "description": "Assists with patient care operations",
+        "composite": false
+      },
+      {
+        "name": "PATIENT",
+        "description": "End user - views own appointments and health data",
+        "composite": false
+      }
+    ],
+    "client": {
+      "platform-backend": [
+        {
+          "name": "READ_PATIENT",
+          "description": "Permission to read patient records"
+        },
+        {
+          "name": "UPDATE_PATIENT",
+          "description": "Permission to update patient records"
+        },
+        {
+          "name": "CREATE_PATIENT",
+          "description": "Permission to create new patients"
+        },
+        {
+          "name": "DELETE_PATIENT",
+          "description": "Permission to delete patient records"
+        },
+        {
+          "name": "MANAGE_STAFF",
+          "description": "Permission to manage staff members"
+        },
+        {
+          "name": "MANAGE_FACILITY",
+          "description": "Permission to manage facilities"
+        },
+        {
+          "name": "VIEW_REPORTS",
+          "description": "Permission to view analytics and reports"
+        },
+        {
+          "name": "MANAGE_PHARMACY",
+          "description": "Permission to manage pharmacy stock"
+        }
+      ],
+      "platform-frontend": []
+    }
+  },
+  "groups": [
+    {
+      "name": "administrators",
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "name": "providers",
+      "realmRoles": ["PROVIDER"]
+    },
+    {
+      "name": "clinical-staff",
+      "subGroups": [
+        {
+          "name": "therapists",
+          "realmRoles": ["THERAPIST"]
+        },
+        {
+          "name": "physicians",
+          "realmRoles": ["PHYSICIAN"]
+        },
+        {
+          "name": "nurses",
+          "realmRoles": ["NURSE"]
+        }
+      ]
+    },
+    {
+      "name": "patients",
+      "realmRoles": ["PATIENT"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "platform-backend",
+      "name": "Platform Backend Services",
+      "description": "Confidential client for backend microservices",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "hospital-b-secret-change-me",
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+    },
+    {
+      "clientId": "platform-frontend",
+      "name": "Platform Frontend Application",
+      "description": "Public client for the admin portal / frontend SPA",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:4200"
+      ],
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin-b",
+      "email": "admin@hospital-b.com",
+      "firstName": "Admin",
+      "lastName": "Hospital-B",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["ADMIN"],
+      "clientRoles": {
+        "platform-backend": ["READ_PATIENT", "UPDATE_PATIENT", "CREATE_PATIENT", "DELETE_PATIENT", "MANAGE_STAFF", "MANAGE_FACILITY", "VIEW_REPORTS", "MANAGE_PHARMACY"]
+      },
+      "groups": ["administrators"]
+    },
+    {
+      "username": "dr.jones",
+      "email": "dr.jones@hospital-b.com",
+      "firstName": "Sarah",
+      "lastName": "Jones",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "doctor123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["PHYSICIAN"],
+      "clientRoles": {
+        "platform-backend": ["READ_PATIENT", "UPDATE_PATIENT", "VIEW_REPORTS"]
+      }
+    },
+    {
+      "username": "nurse.alex",
+      "email": "alex@hospital-b.com",
+      "firstName": "Alex",
+      "lastName": "Brown",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "nurse123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["NURSE"],
+      "clientRoles": {
+        "platform-backend": ["READ_PATIENT"]
+      }
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "platform-backend",
+      "roles": ["ADMIN", "PROVIDER", "THERAPIST", "PHYSICIAN", "NURSE", "PATIENT"]
+    },
+    {
+      "client": "platform-frontend",
+      "roles": ["ADMIN", "PROVIDER", "THERAPIST", "PHYSICIAN", "NURSE", "PATIENT"]
+    }
+  ]
+}

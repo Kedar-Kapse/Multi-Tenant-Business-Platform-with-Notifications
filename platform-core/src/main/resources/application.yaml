@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: platform-core
+
+# Restore Production — Keycloak configuration
+# ValidateToken manually fetches JWKS from {base-url}/realms/{tenant}/protocol/openid-connect/certs
+# No spring.security.oauth2.resourceserver.jwt.issuer-uri auto-configuration
+keycloak:
+  base-url: ${KEYCLOAK_BASE_URL:http://localhost:8080}
+  admin:
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}
