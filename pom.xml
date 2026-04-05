@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.kedar.kapse</groupId>
+    <artifactId>multi-tenant-business-platform</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>Multi-Tenant Business Platform</name>
+    <description>Multi-tenant healthcare SaaS platform with Spring Boot microservices</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <spring-cloud.version>2023.0.2</spring-cloud.version>
+    </properties>
+
+    <modules>
+        <module>platform-core</module>
+        <module>access-security-service</module>
+        <module>admin-service</module>
+        <module>api-gateway</module>
+        <module>business-service</module>
+        <module>notification-service</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

@@ -1,6 +1,8 @@
 services:
   service-registry:
-    build: ./service-registry
+    build:
+      context: .
+      dockerfile: service-registry/Dockerfile
     container_name: service-registry
     ports:
       - "8761:8761"
@@ -21,12 +23,6 @@ services:
     networks:
       - platform-network
 
-  # ==========================================================================
-  # KEYCLOAK — Central Authentication & Authorization Server
-  # ==========================================================================
-  # Multi-tenant setup: each tenant gets its own Keycloak realm.
-  # Realm JSON files are auto-imported on first startup.
-  # Admin console: http://localhost:8080/admin (admin/admin)
   keycloak:
     image: quay.io/keycloak/keycloak:22.0.1
     container_name: keycloak
@@ -57,7 +53,9 @@ services:
       - platform-network
 
   access-security-service:
-    build: ./access-security-service
+    build:
+      context: .
+      dockerfile: access-security-service/Dockerfile
     container_name: access-security-service
     ports:
       - "8082:8082"
@@ -67,7 +65,6 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-platform_db}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      # Multi-tenant Keycloak: services resolve realm dynamically from X-TENANT-ID header
       - KEYCLOAK_BASE_URL=http://keycloak:8080
       - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
       - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN:-admin}
@@ -84,7 +81,9 @@ services:
       - platform-network
 
   api-gateway:
-    build: ./api-gateway
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
     ports:
       - "8085:8085"
@@ -99,7 +98,9 @@ services:
       - platform-network
 
   admin-service:
-    build: ./admin-service
+    build:
+      context: .
+      dockerfile: admin-service/Dockerfile
     container_name: admin-service
     ports:
       - "8084:8084"
@@ -114,11 +115,14 @@ services:
       - platform-network
 
   business-service:
-    build: ./business-service
+    build:
+      context: .
+      dockerfile: business-service/Dockerfile
     container_name: business-service
     ports:
       - "8081:8081"
     environment:
+      - EUREKA_CLIENT_ENABLED=true
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-platform_db}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
@@ -137,7 +141,9 @@ services:
       - platform-network
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
     container_name: notification-service
     ports:
       - "8083:8083"
@@ -154,7 +160,9 @@ services:
       - platform-network
 
   admin-portal:
-    build: ./admin-portal
+    build:
+      context: .
+      dockerfile: admin-portal/Dockerfile
     container_name: admin-portal
     ports:
       - "3000:80"
@@ -164,7 +172,9 @@ services:
       - platform-network
 
   provider-portal:
-    build: ./provider-portal
+    build:
+      context: .
+      dockerfile: provider-portal/Dockerfile
     container_name: provider-portal
     ports:
       - "3001:80"
@@ -174,7 +184,9 @@ services:
       - platform-network
 
   patient-portal:
-    build: ./patient-portal
+    build:
+      context: .
+      dockerfile: patient-portal/Dockerfile
     container_name: patient-portal
     ports:
       - "3002:80"

@@ -1,0 +1,13 @@
+**/node_modules
+**/target
+**/build
+**/.git
+**/.idea
+**/.vscode
+**/npm-debug.log
+**/*.md
+**/docs
+.env
+Zipkin/
+storage /
+structure nots/
