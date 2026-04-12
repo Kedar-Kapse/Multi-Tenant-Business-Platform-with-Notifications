@@ -18,6 +18,7 @@ const sections = [
     title: 'ORGANIZATION',
     items: [
       { label: 'Staff Management', icon: FiUsers, path: '/staff' },
+      { label: 'Patients', icon: FiUsers, path: '/patients' },
       { label: 'EHR Rules', icon: FiFileText, path: '/ehr' },
       { label: 'Inventory & Facility', icon: FiPackage, path: '/inventory' },
       { label: 'Tenants', icon: FiUserPlus, path: '/tenants' },

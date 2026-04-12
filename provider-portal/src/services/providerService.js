@@ -7,9 +7,14 @@ export const staffApi = {
   search:    (query, role, status, page = 0, size = 20) => api.get(`${ACCESS_SECURITY}/api/admin/v1/staff/search`, { params: { query, role, status, page, size } }).then(r => r.data),
 };
 
-// Patients (via staff listing filtered)
+// Patients
+const PATIENT_BASE = `${ACCESS_SECURITY}/api/v1/patients`;
 export const patientApi = {
-  getAll: (page = 0, size = 20) => staffApi.getAll(page, size),
+  list: (page = 0, size = 20, query, status) =>
+    api.get(PATIENT_BASE, { params: { page, size, query, status, sortBy: 'createdAt', sortDir: 'desc' } }).then(r => r.data),
+  create: (data) => api.post(PATIENT_BASE, data).then(r => r.data),
+  createForProvider: (providerId, data) =>
+    api.post(`${PATIENT_BASE}/by-provider/${providerId}`, data).then(r => r.data),
 };
 
 // EHR / Notes

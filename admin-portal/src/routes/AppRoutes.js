@@ -4,6 +4,7 @@ import AdminLayout from '../components/layout/AdminLayout';
 import LoginPage from '../pages/login/LoginPage';
 import DashboardPage from '../pages/dashboard/DashboardPage';
 import StaffPage from '../pages/organization/staff/StaffPage';
+import PatientsPage from '../pages/organization/patients/PatientsPage';
 import TenantsPage from '../pages/organization/tenants/TenantsPage';
 import InventoryPage from '../pages/organization/inventory/InventoryPage';
 import EhrPage from '../pages/organization/ehr/EhrPage';
@@ -31,6 +32,7 @@ export default function AppRoutes() {
         <Route index element={<DashboardPage />} />
         {/* Organization */}
         <Route path="staff" element={<StaffPage />} />
+        <Route path="patients" element={<PatientsPage />} />
         <Route path="tenants" element={<TenantsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="ehr" element={<EhrPage />} />
