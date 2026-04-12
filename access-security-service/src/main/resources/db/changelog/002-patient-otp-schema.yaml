@@ -87,7 +87,7 @@ databaseChangeLog:
             columns:
               - column: { name: id, type: uuid, constraints: { primaryKey: true, nullable: false } }
               - column: { name: identifier, type: varchar(100), constraints: { nullable: false } }
-              - column: { name: otp_code, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: otp_code, type: varchar(72), constraints: { nullable: false } }
               - column: { name: channel, type: varchar(10), constraints: { nullable: false } }
               - column: { name: purpose, type: varchar(20), constraints: { nullable: false } }
               - column: { name: status, type: varchar(10), constraints: { nullable: false } }

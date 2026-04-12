@@ -28,7 +28,8 @@ public class OtpVerification extends BaseEntity {
     @Column(nullable = false, length = 100)
     private String identifier;
 
-    @Column(nullable = false, length = 10)
+    /** BCrypt hash of the raw OTP. The raw code is never persisted. */
+    @Column(nullable = false, length = 72)
     private String otpCode;
 
     @Enumerated(EnumType.STRING)

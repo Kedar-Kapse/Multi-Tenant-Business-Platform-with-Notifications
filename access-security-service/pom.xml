@@ -89,6 +89,11 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+        <!-- Fail-safe: if Kafka publish fails, access-security-service sends the email itself. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.kedar.kapse</groupId>
             <artifactId>platform-core</artifactId>

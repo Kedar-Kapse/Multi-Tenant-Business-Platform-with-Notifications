@@ -93,25 +93,101 @@ otp:
 Enforced by `SetPasswordRequest` via Bean Validation:
 `^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$`
 
-## Mock email / call dispatcher
+## Email delivery (real SMTP)
 
-Lives in `notification-service` (`EmailService`, `CallService`). They log a formatted
-block so you can grep the logs for OTP codes or registration links during development.
-Swap in JavaMailSender / Twilio / Exotel without touching the publishing side.
+`notification-service` uses `JavaMailSender` with a Thymeleaf-free inline HTML template
+to deliver OTP and registration-link emails over SMTP. SMTP is configured from
+`spring.mail.*` properties in `application.yml` and can be overridden by env vars.
+
+### Local dev (default): MailDev
+The docker-compose stack ships a `maildev` container — a zero-config SMTP sink
+with a web inbox. No credentials, no external accounts, real SMTP.
+
+- SMTP: `maildev:1025` (or `localhost:1025` from the host)
+- Web UI: http://localhost:1080
+
+Every OTP and registration email is visible in that inbox within a second of
+sending.
+
+### Switching to Mailtrap / Gmail / SES
+Set these env vars in your shell or `.env` before `docker compose up`:
+
+```bash
+MAIL_HOST=smtp.mailtrap.io         # or smtp.gmail.com, email-smtp.<region>.amazonaws.com, …
+MAIL_PORT=587
+MAIL_USERNAME=<user>
+MAIL_PASSWORD=<app-password>
+MAIL_SMTP_AUTH=true
+MAIL_SMTP_STARTTLS=true
+MAIL_FROM=no-reply@yourdomain.com
+```
+
+No code changes required. Both `notification-service` and
+`access-security-service` (fallback sender) pick up the same vars.
+
+### Fail-safe fallback
+If Kafka is unreachable, the publisher in `access-security-service` catches the
+failed producer future and delivers the email itself via `FallbackMailSender`,
+so OTPs and registration links are never silently dropped.
+
+## Kafka (KRaft mode, no Zookeeper)
+
+The compose file runs a single-node KRaft broker (`confluentinc/cp-kafka:7.6.1`)
+with `KAFKA_PROCESS_ROLES=broker,controller`. A fixed `CLUSTER_ID` is set via
+env (override with `KAFKA_CLUSTER_ID` if you want to reset state).
+
+Topics `patient.created` and `otp.requested` are auto-created at startup by
+`KafkaTopicConfig` (3 partitions, replication 1). Auto-create is also on at
+the broker level as a safety net.
+
+### Producer tuning (access-security-service)
+```yaml
+spring.kafka.producer.properties:
+  max.block.ms: 500
+  request.timeout.ms: 1000
+  delivery.timeout.ms: 2000
+  retries: 0
+  acks: "1"
+```
+Tight timeouts + async send + fallback = OTP generation never blocks on Kafka.
+
+### Consumer (notification-service)
+Binds to the `notification-group` consumer group. `JsonDeserializer` with
+`spring.json.trusted.packages=*` deserializes `BaseEvent<T>` payloads, then
+the listener uses Jackson's `ObjectMapper.convertValue` to narrow the inner
+payload type for routing.
 
 ## Running a manual smoke test
 
-1. `docker compose up --build -d` (or start the services individually).
-2. Log into admin-portal (`http://localhost:3000`) → **Patients** → *Add Patient*.
-3. Tail notification-service logs: `docker logs -f notification-service`.
-   You'll see a `📧 MOCK EMAIL (Registration)` block with the registration link.
-4. Open the link in a browser (patient-portal, port 3002).
-5. Choose EMAIL channel, send OTP, grab the code from notification-service logs,
-   enter it, then set a password.
-6. Log in from the patient portal with the new credentials.
+1. `docker compose up --build -d`
+2. Open the MailDev inbox at http://localhost:1080 and keep it open.
+3. Log into admin-portal (http://localhost:3000) → **Patients** → *Add Patient*.
+   A "Welcome to Invision" email arrives in MailDev within a second.
+4. Click the *Complete registration* button in the email (opens
+   http://localhost:3002/register?email=…&tenant=…).
+5. Confirm email → pick EMAIL → click *Send OTP*. A "Your verification code"
+   email arrives in MailDev.
+6. Enter the OTP → set a password that matches the policy (e.g. `Passw0rd!`).
+7. Log in from the patient portal with the new credentials.
+
+### OTP security
+- OTPs are **BCrypt-hashed** before storage (`otp_verification.otp_code` is the
+  hash, never the raw code). Verification uses
+  `BCryptPasswordEncoder.matches(raw, hash)`.
+- The raw code exists only in memory long enough to be published (to Kafka or
+  to the fallback mailer). Even a full DB dump does not expose live OTPs.
+- 60s TTL, 3 attempts, 30s resend cooldown, 5/10-min per-identifier rate limit.
 
 ## Tests
 
-`OtpServiceTest` covers: generate → rate-limit, resend cooldown, verify success,
-verify expiry, verify max-attempts lock-out, and consumeVerificationToken guards.
-Run `mvn -pl access-security-service test` or just that class from the IDE.
+- `OtpServiceTest` (access-security-service): asserts that generate stores a
+  BCrypt hash (never raw digits), that verify matches via BCrypt semantics, plus
+  rate-limit, resend cooldown, expiry, max-attempts lock-out, and
+  consumeVerificationToken guards.
+- `OtpNotificationListenerTest` (notification-service): Kafka listener routing —
+  EMAIL → EmailService, CALL → CallService, malformed events dropped.
+
+Run both suites:
+```bash
+mvn -pl access-security-service,notification-service -am test
+```

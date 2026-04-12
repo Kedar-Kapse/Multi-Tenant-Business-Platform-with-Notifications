@@ -34,10 +34,12 @@ spring:
       properties:
         spring.json.add.type.headers: false
         # Fail fast when the broker is unreachable so OTP/patient flows aren't blocked.
-        max.block.ms: 1000
-        request.timeout.ms: 2000
-        delivery.timeout.ms: 3000
+        # Publish is async with a fallback in NotificationEventPublisher.
+        max.block.ms: 500
+        request.timeout.ms: 1000
+        delivery.timeout.ms: 2000
         retries: 0
+        acks: "1"
     listener:
       auto-startup: ${KAFKA_LISTENER_ENABLED:true}
 
@@ -48,6 +50,29 @@ otp:
   resend-cooldown-seconds: 30
   max-per-window: 5
   rate-window-minutes: 10
+  bcrypt-cost: 10
+
+# Direct-mail fallback: if Kafka publish fails, access-security-service sends the
+# email itself so OTP delivery is never silently dropped.
+spring.mail:
+  host: ${SPRING_MAIL_HOST:localhost}
+  port: ${SPRING_MAIL_PORT:1025}
+  username: ${SPRING_MAIL_USERNAME:}
+  password: ${SPRING_MAIL_PASSWORD:}
+  properties:
+    mail:
+      smtp:
+        auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:false}
+        starttls:
+          enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:false}
+        connectiontimeout: 5000
+        timeout: 5000
+        writetimeout: 5000
+
+notification:
+  mail:
+    from: ${MAIL_FROM:no-reply@invision.local}
+    display-name: ${MAIL_DISPLAY_NAME:Invision Patient Portal}
 
 # ==========================================================================
 # RESTORE PRODUCTION — KEYCLOAK CONFIGURATION

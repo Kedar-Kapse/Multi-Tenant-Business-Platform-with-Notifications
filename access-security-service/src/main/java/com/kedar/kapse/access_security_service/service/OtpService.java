@@ -3,50 +3,58 @@ package com.kedar.kapse.access_security_service.service;
 import com.kedar.kapse.platform_core.dto.OtpGenerateRequest;
 import com.kedar.kapse.platform_core.dto.OtpVerifyRequest;
 import com.kedar.kapse.platform_core.entity.OtpVerification;
+import com.kedar.kapse.platform_core.enums.OtpPurpose;
 import com.kedar.kapse.platform_core.enums.OtpStatus;
 import com.kedar.kapse.platform_core.repository.OtpVerificationRepository;
 import com.kedar.kapse.platform_core.security.TenantContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * OTP lifecycle service.
+ *
+ * Security model:
+ * - Raw OTPs never hit disk. We store a BCrypt hash and compare with
+ *   {@link BCryptPasswordEncoder#matches(CharSequence, String)} on verify.
+ * - Rate limit + resend cooldown prevent code-spraying.
+ * - A verified OTP row's id is returned as a one-time verificationToken;
+ *   {@link #consumeVerificationToken} flips it to CONSUMED after set-password.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OtpService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
-
-    @Value("${otp.length:6}")
-    private int otpLength;
-
-    @Value("${otp.ttl-seconds:60}")
-    private int ttlSeconds;
-
-    @Value("${otp.max-attempts:3}")
-    private int maxAttempts;
-
-    @Value("${otp.resend-cooldown-seconds:30}")
-    private int resendCooldownSeconds;
-
-    @Value("${otp.max-per-window:5}")
-    private int maxPerWindow;
-
-    @Value("${otp.rate-window-minutes:10}")
-    private int rateWindowMinutes;
-
     /** Max age of a VERIFIED OTP that can still be used to complete set-password. */
     private static final int VERIFIED_TOKEN_TTL_MINUTES = 5;
 
+    @Value("${otp.length:6}")                    private int otpLength;
+    @Value("${otp.ttl-seconds:60}")              private int ttlSeconds;
+    @Value("${otp.max-attempts:3}")              private int maxAttempts;
+    @Value("${otp.resend-cooldown-seconds:30}")  private int resendCooldownSeconds;
+    @Value("${otp.max-per-window:5}")            private int maxPerWindow;
+    @Value("${otp.rate-window-minutes:10}")      private int rateWindowMinutes;
+
     private final OtpVerificationRepository otpRepository;
     private final NotificationEventPublisher eventPublisher;
+    private final BCryptPasswordEncoder passwordEncoder;
+
+    public OtpService(OtpVerificationRepository otpRepository,
+                      NotificationEventPublisher eventPublisher,
+                      @Value("${otp.bcrypt-cost:10}") int bcryptCost) {
+        this.otpRepository = otpRepository;
+        this.eventPublisher = eventPublisher;
+        this.passwordEncoder = new BCryptPasswordEncoder(bcryptCost);
+    }
 
     @Transactional
     public void generate(OtpGenerateRequest req) {
@@ -59,12 +67,11 @@ public class OtpService {
             throw new IllegalStateException("OTP rate limit exceeded. Try again later.");
         }
 
-        // Cooldown check — prevents spamming resend
         Optional<OtpVerification> latest = otpRepository
                 .findTopByIdentifierAndPurposeAndStatusOrderByCreatedAtDesc(
                         identifier, req.getPurpose(), OtpStatus.PENDING);
         latest.ifPresent(prev -> {
-            long secondsSince = java.time.Duration.between(prev.getCreatedAt(), LocalDateTime.now()).getSeconds();
+            long secondsSince = Duration.between(prev.getCreatedAt(), LocalDateTime.now()).getSeconds();
             if (secondsSince < resendCooldownSeconds) {
                 throw new IllegalStateException("Please wait " + (resendCooldownSeconds - secondsSince) +
                         "s before requesting another OTP.");
@@ -73,10 +80,12 @@ public class OtpService {
             otpRepository.save(prev);
         });
 
-        String code = generateCode(otpLength);
+        String rawCode = generateCode(otpLength);
+        String hash = passwordEncoder.encode(rawCode);
+
         OtpVerification otp = OtpVerification.builder()
                 .identifier(identifier)
-                .otpCode(code)
+                .otpCode(hash)
                 .channel(req.getChannel())
                 .purpose(req.getPurpose())
                 .status(OtpStatus.PENDING)
@@ -87,14 +96,12 @@ public class OtpService {
                 .build();
         otpRepository.save(otp);
 
+        // Publish the RAW code (it's ephemeral — never persisted). If Kafka is
+        // unreachable the publisher falls back to sending the email directly.
         eventPublisher.publishOtp(identifier, req.getChannel().name(), req.getPurpose().name(),
-                code, ttlSeconds, tenantRealm);
+                rawCode, ttlSeconds, tenantRealm);
     }
 
-    /**
-     * Verifies an OTP. On success returns a verificationToken (UUID) to be
-     * presented at set-password. Throws IllegalArgumentException on failures.
-     */
     @Transactional
     public UUID verify(OtpVerifyRequest req) {
         String identifier = req.getIdentifier().trim().toLowerCase();
@@ -111,7 +118,7 @@ public class OtpService {
 
         otp.setAttemptCount(otp.getAttemptCount() + 1);
 
-        if (!otp.getOtpCode().equals(req.getOtpCode())) {
+        if (!passwordEncoder.matches(req.getOtpCode(), otp.getOtpCode())) {
             if (otp.getAttemptCount() >= otp.getMaxAttempts()) {
                 otp.setStatus(OtpStatus.FAILED);
                 otpRepository.save(otp);
@@ -125,17 +132,12 @@ public class OtpService {
         otp.setStatus(OtpStatus.VERIFIED);
         otp.setVerifiedAt(LocalDateTime.now());
         otpRepository.save(otp);
-        log.info("OTP verified for identifier={} purpose={}", identifier, req.getPurpose());
+        log.info("OTP verified identifier={} purpose={}", identifier, req.getPurpose());
         return otp.getId();
     }
 
-    /**
-     * Consumes a previously VERIFIED OTP by its token (id). Returns the identifier
-     * it was issued for. Used by registration / set-password / forgot-password flows.
-     */
     @Transactional
-    public String consumeVerificationToken(UUID verificationToken,
-                                           com.kedar.kapse.platform_core.enums.OtpPurpose expectedPurpose) {
+    public String consumeVerificationToken(UUID verificationToken, OtpPurpose expectedPurpose) {
         OtpVerification otp = otpRepository.findById(verificationToken)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid verification token"));
 
