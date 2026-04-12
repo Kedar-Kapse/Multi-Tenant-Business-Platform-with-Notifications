@@ -91,7 +91,7 @@ public class PatientServiceImpl implements PatientService {
         }
 
         eventPublisher.publishPatientCreated(patient.getEmail(), patient.getFirstName(),
-                tenantRealm, patient.getId().toString());
+                patient.getLastName(), tenantRealm, patient.getId().toString());
         auditService.record("PATIENT", patient.getId().toString(), "CREATE", null,
                 "Created by " + (providerId != null ? "provider:" + providerId : "admin"));
 

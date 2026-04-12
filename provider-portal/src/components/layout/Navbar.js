@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiMenu, FiBell, FiUser, FiLogOut, FiSettings, FiSun, FiMoon, FiChevronDown } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
+import PortalSwitcher from '../PortalSwitcher';
 
 export default function Navbar({ toggleSidebar }) {
   const { user, logout } = useAuthStore();
@@ -38,6 +39,7 @@ export default function Navbar({ toggleSidebar }) {
       </div>
 
       <div className="flex items-center gap-1.5">
+        <PortalSwitcher userRoles={user?.roles} />
         <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition">{dark ? <FiSun size={16} /> : <FiMoon size={16} />}</button>
         <button onClick={() => navigate('/notifications')} className="p-2 rounded-xl hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition"><FiBell size={16} /></button>
 

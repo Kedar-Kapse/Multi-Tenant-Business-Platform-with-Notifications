@@ -11,7 +11,8 @@
     "react-scripts": "5.0.1",
     "recharts": "^3.8.0",
     "zustand": "^5.0.11",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "ajv": "^8.17.1"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0",

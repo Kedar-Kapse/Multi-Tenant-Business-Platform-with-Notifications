@@ -17,7 +17,11 @@ const processQueue = (error, token = null) => {
 };
 
 api.interceptors.request.use(config => {
-  if (!config.url?.includes('/api/auth/')) {
+  // Only omit the token for truly public auth endpoints.
+  // Portal-switch /portals and /generate require ADMIN authentication.
+  const publicAuthPaths = ['/api/auth/login', '/api/auth/logout', '/api/auth/refresh', '/api/auth/portal-switch/exchange'];
+  const isPublicAuth = publicAuthPaths.some((p) => config.url?.includes(p));
+  if (!isPublicAuth) {
     const token = localStorage.getItem('provider_access_token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
@@ -29,7 +33,9 @@ api.interceptors.response.use(
   async err => {
     const original = err.config;
     const url = original?.url || '';
-    const isRetryable = url.includes('/access-security/') && !url.includes('/api/auth/');
+    const publicAuthPaths = ['/api/auth/login', '/api/auth/logout', '/api/auth/refresh', '/api/auth/portal-switch/exchange'];
+    const isPublicAuth = publicAuthPaths.some((p) => url.includes(p));
+    const isRetryable = url.includes('/access-security/') && !isPublicAuth;
 
     if (err.response?.status === 401 && isRetryable && !original._retry) {
       const rt = localStorage.getItem('provider_refresh_token');

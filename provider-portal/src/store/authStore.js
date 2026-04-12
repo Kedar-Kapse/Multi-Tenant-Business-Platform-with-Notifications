@@ -23,6 +23,7 @@ const useAuthStore = create((set) => ({
     set({ user: null });
   },
 
+  refreshUser: () => set({ user: authService.getUser() }),
   isAuthenticated: () => authService.isAuthenticated(),
 }));
 

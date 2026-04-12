@@ -26,6 +26,24 @@ spring:
         temp:
           use_jdbc_metadata_defaults: false
 
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    listener:
+      auto-startup: ${KAFKA_LISTENER_ENABLED:true}
+
+otp:
+  length: 6
+  ttl-seconds: 60
+  max-attempts: 3
+  resend-cooldown-seconds: 30
+  max-per-window: 5
+  rate-window-minutes: 10
+
 # ==========================================================================
 # RESTORE PRODUCTION — KEYCLOAK CONFIGURATION
 # ==========================================================================
@@ -56,6 +74,22 @@ eureka:
     instance-id: ${spring.application.name}:${random.value}
     status-page-url-path: /actuator/info
     health-check-url-path: /actuator/health
+
+# ==========================================================================
+# PORTAL SWITCHING — Cross-portal navigation for ADMIN users
+# ==========================================================================
+portal:
+  switch-code-ttl-seconds: 30
+  portals:
+    admin:
+      name: Admin Portal
+      url: ${PORTAL_ADMIN_URL:http://localhost:3000}
+    provider:
+      name: Provider Portal
+      url: ${PORTAL_PROVIDER_URL:http://localhost:3001}
+    patient:
+      name: Patient Portal
+      url: ${PORTAL_PATIENT_URL:http://localhost:3002}
 
 logging:
   level:

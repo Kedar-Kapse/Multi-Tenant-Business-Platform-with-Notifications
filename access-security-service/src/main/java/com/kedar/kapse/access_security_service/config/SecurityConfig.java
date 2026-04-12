@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers(SecurityConstants.PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/admin/v1/dashboard/**").permitAll()
+                        // Portal switch code exchange is public (target portal has no token yet)
+                        .requestMatchers("/api/auth/portal-switch/exchange").permitAll()
 
                         // Protected actuator endpoints — ADMIN only
                         .requestMatchers(SecurityConstants.PROTECTED_ACTUATOR_ENDPOINTS)

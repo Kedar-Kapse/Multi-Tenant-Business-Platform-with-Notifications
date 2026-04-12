@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import PrivateRoute from './components/PrivateRoute';
 import PatientLayout from './components/layout/PatientLayout';
 import LoginPage from './pages/login/LoginPage';
+import PortalEntryPage from './pages/portal-entry/PortalEntryPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ProvidersPage from './pages/providers/ProvidersPage';
@@ -17,6 +18,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/portal-entry" element={<PortalEntryPage />} />
         <Route path="/" element={<PrivateRoute><PatientLayout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />

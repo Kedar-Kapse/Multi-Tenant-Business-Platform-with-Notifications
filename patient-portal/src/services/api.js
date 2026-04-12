@@ -7,8 +7,11 @@ const api = axios.create({ baseURL: GATEWAY, headers: { 'Content-Type': 'applica
 let isRefreshing = false, failedQueue = [];
 const processQueue = (err, token) => { failedQueue.forEach(p => err ? p.reject(err) : p.resolve(token)); failedQueue = []; };
 
+const PUBLIC_AUTH_PATHS = ['/api/auth/login', '/api/auth/logout', '/api/auth/refresh', '/api/auth/portal-switch/exchange'];
+
 api.interceptors.request.use(config => {
-  if (!config.url?.includes('/api/auth/')) {
+  const isPublicAuth = PUBLIC_AUTH_PATHS.some((p) => config.url?.includes(p));
+  if (!isPublicAuth) {
     const t = localStorage.getItem('patient_access_token');
     if (t) config.headers.Authorization = `Bearer ${t}`;
   }
@@ -18,7 +21,10 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(res => res, async err => {
   const orig = err.config;
   const url = orig?.url || '';
-  if (err.response?.status === 401 && url.includes('/access-security/') && !url.includes('/api/auth/') && !orig._retry) {
+  const isPublicAuth = PUBLIC_AUTH_PATHS.some((p) => url.includes(p));
+  const isRetryable = url.includes('/access-security/') && !isPublicAuth;
+
+  if (err.response?.status === 401 && isRetryable && !orig._retry) {
     const rt = localStorage.getItem('patient_refresh_token');
     if (!rt) { localStorage.removeItem('patient_access_token'); localStorage.removeItem('patient_refresh_token'); if (window.location.pathname !== '/login') window.location.href = '/login'; return Promise.reject(err); }
     if (isRefreshing) return new Promise((res, rej) => failedQueue.push({ resolve: res, reject: rej })).then(t => { orig.headers.Authorization = `Bearer ${t}`; return api(orig); });

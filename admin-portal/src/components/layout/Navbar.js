@@ -5,6 +5,7 @@ import useAuthStore from '../../store/authStore';
 import useThemeStore from '../../store/themeStore';
 import useNotificationStore from '../../store/notificationStore';
 import { formatRelativeTime } from '../../utils/formatters';
+import PortalSwitcher from '../PortalSwitcher';
 
 export default function Navbar() {
   const { user, logout } = useAuthStore();
@@ -70,6 +71,9 @@ export default function Navbar() {
 
       {/* Right */}
       <div className="flex items-center gap-1.5">
+        {/* Portal Switcher — visible only for ADMIN role */}
+        <PortalSwitcher userRoles={user?.roles} />
+
         {/* Theme toggle */}
         <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition-colors" title="Toggle theme">
           {theme === 'dark' ? <FiSun size={16} /> : <FiMoon size={16} />}

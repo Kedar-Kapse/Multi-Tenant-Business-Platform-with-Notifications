@@ -8,6 +8,7 @@ const useAuthStore = create((set) => ({
     catch (err) { const msg = err.message || err.response?.data?.message || 'Authentication failed'; set({ error: msg, loading: false }); throw err; }
   },
   logout: async () => { await authService.logout(); set({ user: null }); },
+  refreshUser: () => set({ user: authService.getUser() }),
   isAuthenticated: () => authService.isAuthenticated(),
 }));
 export default useAuthStore;

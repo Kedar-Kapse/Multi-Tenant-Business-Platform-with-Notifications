@@ -24,8 +24,11 @@ const processQueue = (error, token = null) => {
 };
 
 api.interceptors.request.use((config) => {
-  const isAuthRequest = config.url?.includes('/api/auth/');
-  if (!isAuthRequest) {
+  // Only omit the token for truly public auth endpoints (login/logout/refresh/exchange).
+  // Portal-switch endpoints like /portals and /generate require ADMIN authentication.
+  const publicAuthPaths = ['/api/auth/login', '/api/auth/logout', '/api/auth/refresh', '/api/auth/portal-switch/exchange'];
+  const isPublicAuth = publicAuthPaths.some((p) => config.url?.includes(p));
+  if (!isPublicAuth) {
     const token = localStorage.getItem('access_token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
@@ -37,10 +40,13 @@ api.interceptors.response.use(
   async (err) => {
     const originalRequest = err.config;
     const url = originalRequest?.url || '';
-    const isAuthEndpoint = url.includes('/api/auth/');
+    // Public auth endpoints (login/logout/refresh/exchange) should not be retried with token refresh.
+    // Portal-switch /portals and /generate are authenticated and SHOULD be retried on 401.
+    const publicAuthPaths = ['/api/auth/login', '/api/auth/logout', '/api/auth/refresh', '/api/auth/portal-switch/exchange'];
+    const isPublicAuth = publicAuthPaths.some((p) => url.includes(p));
 
-    // Only retry 401s for access-security endpoints (not business/notifications — those have separate auth)
-    const isRetryable = url.includes('/access-security/') && !isAuthEndpoint;
+    // Retry 401s for access-security endpoints, excluding truly public auth endpoints
+    const isRetryable = url.includes('/access-security/') && !isPublicAuth;
 
     if (err.response?.status === 401 && isRetryable && !originalRequest._retry) {
       const refreshToken = localStorage.getItem('refresh_token');

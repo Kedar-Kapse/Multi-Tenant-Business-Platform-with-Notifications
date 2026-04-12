@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiMenu, FiBell, FiUser, FiLogOut, FiSettings, FiSun, FiMoon, FiChevronDown } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
+import PortalSwitcher from '../PortalSwitcher';
 
 export default function Navbar({ toggleSidebar }) {
   const { user, logout } = useAuthStore();
@@ -21,6 +22,7 @@ export default function Navbar({ toggleSidebar }) {
         <div className="hidden sm:block"><p className="text-sm font-semibold text-secondary-900 dark:text-white">Welcome, {user?.firstName || user?.username || 'Patient'}</p><p className="text-[11px] text-secondary-400">Patient Portal</p></div>
       </div>
       <div className="flex items-center gap-1.5">
+        <PortalSwitcher userRoles={user?.roles} />
         <button onClick={() => { document.documentElement.classList.toggle('dark'); setDark(!dark); }} className="p-2 rounded-xl hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition">{dark ? <FiSun size={16} /> : <FiMoon size={16} />}</button>
         <button onClick={() => navigate('/notifications')} className="p-2 rounded-xl hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition"><FiBell size={16} /></button>
         <div className="w-px h-6 bg-secondary-200 dark:bg-secondary-700 mx-1 hidden sm:block" />

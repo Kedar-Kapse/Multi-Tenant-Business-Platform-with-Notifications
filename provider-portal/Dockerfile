@@ -1,7 +1,7 @@
 FROM node:18-alpine AS build
 WORKDIR /app
-COPY provider-portal/package.json provider-portal/package-lock.json ./
-RUN npm ci --legacy-peer-deps --silent
+COPY provider-portal/package.json ./
+RUN npm install --legacy-peer-deps --silent
 COPY provider-portal/ .
 ENV NODE_OPTIONS=--openssl-legacy-provider
 RUN npm run build
