@@ -62,6 +62,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/v1/dashboard/**").permitAll()
                         // Portal switch code exchange is public (target portal has no token yet)
                         .requestMatchers("/api/auth/portal-switch/exchange").permitAll()
+                        // Patient self-service auth — OTP + registration + forgot password
+                        .requestMatchers("/api/auth/otp/**").permitAll()
+                        .requestMatchers("/api/auth/register/**").permitAll()
+                        .requestMatchers("/api/auth/forgot-password/**").permitAll()
 
                         // Protected actuator endpoints — ADMIN only
                         .requestMatchers(SecurityConstants.PROTECTED_ACTUATOR_ENDPOINTS)
