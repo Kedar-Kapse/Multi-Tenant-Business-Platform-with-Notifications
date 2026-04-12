@@ -198,8 +198,55 @@ public class KeycloakService {
         setUserEnabled(TenantContext.getRequiredTenantId(), userId, true);
     }
 
+    public void enableUserInRealm(String realm, String userId) {
+        setUserEnabled(realm, userId, true);
+    }
+
     public void disableUser(String userId) {
         setUserEnabled(TenantContext.getRequiredTenantId(), userId, false);
+    }
+
+    public void disableUserInRealm(String realm, String userId) {
+        setUserEnabled(realm, userId, false);
+    }
+
+    /**
+     * Creates a disabled user in the given realm (no password set).
+     * Used for patient self-registration: user enabled only after OTP verification + password set.
+     * Returns the Keycloak userId.
+     */
+    public String createPendingUserInRealm(String realm, String username, String email,
+                                           String firstName, String lastName) {
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setEnabled(false);
+        user.setEmailVerified(false);
+
+        RealmResource realmResource = keycloakAdmin.realm(realm);
+        try (Response response = realmResource.users().create(user)) {
+            if (response.getStatus() != 201) {
+                String body = response.readEntity(String.class);
+                log.error("Failed to create pending user in realm '{}'. Status: {}, Body: {}",
+                        realm, response.getStatus(), body);
+                throw new RuntimeException("Failed to create user in Keycloak: " + response.getStatus() + " - " + body);
+            }
+            String path = response.getLocation().getPath();
+            String userId = path.substring(path.lastIndexOf('/') + 1);
+            log.info("Created pending (disabled) user '{}' in realm '{}' with ID: {}", username, realm, userId);
+            return userId;
+        }
+    }
+
+    /**
+     * Resets the password for an existing Keycloak user (no temporary flag — permanent password).
+     */
+    public void resetPasswordInRealm(String realm, String userId, String password) {
+        RealmResource realmResource = keycloakAdmin.realm(realm);
+        setUserPassword(realmResource, userId, password);
+        log.info("Password reset for user '{}' in realm '{}'", userId, realm);
     }
 
     // ======================== PRIVATE HELPERS ========================

@@ -1,0 +1,145 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-patients-table
+      author: kedar
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: patients
+      changes:
+        - createTable:
+            tableName: patients
+            columns:
+              - column: { name: id, type: uuid, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: first_name, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: last_name, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: email, type: varchar(100), constraints: { nullable: false, unique: true, uniqueConstraintName: uk_patient_email } }
+              - column: { name: phone, type: varchar(20) }
+              - column: { name: date_of_birth, type: date }
+              - column: { name: gender, type: varchar(10) }
+              - column: { name: address_line1, type: varchar(255) }
+              - column: { name: address_line2, type: varchar(255) }
+              - column: { name: city, type: varchar(100) }
+              - column: { name: state, type: varchar(100) }
+              - column: { name: country, type: varchar(100) }
+              - column: { name: zip_code, type: varchar(20) }
+              - column: { name: keycloak_user_id, type: varchar(100) }
+              - column: { name: tenant_realm, type: varchar(50) }
+              - column: { name: status, type: varchar(30), constraints: { nullable: false } }
+              - column: { name: registration_completed_at, type: timestamp }
+              - column: { name: deleted_at, type: timestamp }
+              - column: { name: created_by, type: varchar(100) }
+              - column: { name: updated_by, type: varchar(100) }
+              - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
+              - column: { name: updated_at, type: timestamp }
+        - createIndex:
+            tableName: patients
+            indexName: idx_patient_status
+            columns:
+              - column: { name: status }
+        - createIndex:
+            tableName: patients
+            indexName: idx_patient_tenant_realm
+            columns:
+              - column: { name: tenant_realm }
+
+  - changeSet:
+      id: 002-patient-provider-mapping
+      author: kedar
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: patient_provider_mapping
+      changes:
+        - createTable:
+            tableName: patient_provider_mapping
+            columns:
+              - column: { name: id, type: uuid, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: patient_id, type: uuid, constraints: { nullable: false } }
+              - column: { name: provider_id, type: uuid, constraints: { nullable: false } }
+              - column: { name: location_code, type: varchar(100) }
+              - column: { name: "primary", type: boolean, constraints: { nullable: false } }
+              - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
+              - column: { name: updated_at, type: timestamp }
+        - addUniqueConstraint:
+            tableName: patient_provider_mapping
+            columnNames: patient_id, provider_id
+            constraintName: uk_patient_provider
+        - createIndex:
+            tableName: patient_provider_mapping
+            indexName: idx_ppm_provider
+            columns:
+              - column: { name: provider_id }
+
+  - changeSet:
+      id: 002-otp-verification
+      author: kedar
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: otp_verification
+      changes:
+        - createTable:
+            tableName: otp_verification
+            columns:
+              - column: { name: id, type: uuid, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: identifier, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: otp_code, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: channel, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: purpose, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: status, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: expires_at, type: timestamp, constraints: { nullable: false } }
+              - column: { name: attempt_count, type: int, constraints: { nullable: false } }
+              - column: { name: max_attempts, type: int, constraints: { nullable: false } }
+              - column: { name: verified_at, type: timestamp }
+              - column: { name: tenant_realm, type: varchar(50) }
+              - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
+              - column: { name: updated_at, type: timestamp }
+        - createIndex:
+            tableName: otp_verification
+            indexName: idx_otp_identifier_purpose
+            columns:
+              - column: { name: identifier }
+              - column: { name: purpose }
+              - column: { name: status }
+        - createIndex:
+            tableName: otp_verification
+            indexName: idx_otp_expires_at
+            columns:
+              - column: { name: expires_at }
+
+  - changeSet:
+      id: 002-audit-logs
+      author: kedar
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: audit_logs
+      changes:
+        - createTable:
+            tableName: audit_logs
+            columns:
+              - column: { name: id, type: uuid, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: entity_type, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: entity_id, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: action, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: actor_id, type: varchar(100) }
+              - column: { name: tenant_realm, type: varchar(50) }
+              - column: { name: details, type: text }
+              - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
+              - column: { name: updated_at, type: timestamp }
+        - createIndex:
+            tableName: audit_logs
+            indexName: idx_audit_entity
+            columns:
+              - column: { name: entity_type }
+              - column: { name: entity_id }
+        - createIndex:
+            tableName: audit_logs
+            indexName: idx_audit_actor
+            columns:
+              - column: { name: actor_id }
