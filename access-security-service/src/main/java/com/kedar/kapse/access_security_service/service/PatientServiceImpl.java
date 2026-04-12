@@ -84,7 +84,7 @@ public class PatientServiceImpl implements PatientService {
                     .patientId(patient.getId())
                     .providerId(providerId)
                     .locationCode(request.getLocationCode())
-                    .primary(true)
+                    .isPrimary(true)
                     .build();
             mappingRepository.save(mapping);
             log.info("Mapped patient {} to provider {}", patient.getId(), providerId);

@@ -33,6 +33,11 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+        # Fail fast when the broker is unreachable so OTP/patient flows aren't blocked.
+        max.block.ms: 1000
+        request.timeout.ms: 2000
+        delivery.timeout.ms: 3000
+        retries: 0
     listener:
       auto-startup: ${KAFKA_LISTENER_ENABLED:true}
 

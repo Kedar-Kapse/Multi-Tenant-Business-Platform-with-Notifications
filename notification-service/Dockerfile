@@ -1,6 +1,7 @@
 FROM maven:3.9-eclipse-temurin-17-alpine AS build
 WORKDIR /workspace
 COPY pom.xml ./pom.xml
+RUN mvn -f pom.xml install -N -q
 COPY platform-core/pom.xml ./platform-core/pom.xml
 COPY platform-core/src ./platform-core/src
 RUN mvn -f platform-core/pom.xml install -DskipTests -q

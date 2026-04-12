@@ -60,7 +60,7 @@ databaseChangeLog:
               - column: { name: patient_id, type: uuid, constraints: { nullable: false } }
               - column: { name: provider_id, type: uuid, constraints: { nullable: false } }
               - column: { name: location_code, type: varchar(100) }
-              - column: { name: "primary", type: boolean, constraints: { nullable: false } }
+              - column: { name: is_primary, type: boolean, constraints: { nullable: false } }
               - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
               - column: { name: updated_at, type: timestamp }
         - addUniqueConstraint:

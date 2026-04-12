@@ -29,7 +29,7 @@ public class PatientProviderMapping extends BaseEntity {
     @Column(length = 100)
     private String locationCode;
 
-    @Column(nullable = false)
+    @Column(name = "is_primary", nullable = false)
     @lombok.Builder.Default
-    private Boolean primary = false;
+    private Boolean isPrimary = false;
 }
