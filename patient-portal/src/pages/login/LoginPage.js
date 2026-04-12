@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FiEye, FiEyeOff, FiShield, FiHeart, FiCalendar, FiFileText } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
 
@@ -42,6 +42,10 @@ export default function LoginPage() {
               <div><label className="block text-sm font-semibold text-secondary-800 mb-1.5">Username</label><div className="relative"><div className="absolute left-0 top-0 bottom-0 w-1 bg-primary-500 rounded-l-lg" /><input type="text" value={username} onChange={e => setUsername(e.target.value)} required autoFocus className="w-full pl-4 pr-4 py-3 rounded-lg border border-secondary-200 bg-white text-sm placeholder-secondary-400 focus:ring-2 focus:ring-primary-500 outline-none transition" placeholder="Enter your username" /></div></div>
               <div><label className="block text-sm font-semibold text-secondary-800 mb-1.5">Password</label><div className="relative"><div className="absolute left-0 top-0 bottom-0 w-1 bg-primary-500 rounded-l-lg" /><input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required className="w-full pl-4 pr-10 py-3 rounded-lg border border-secondary-200 bg-white text-sm placeholder-secondary-400 focus:ring-2 focus:ring-primary-500 outline-none transition" placeholder="Enter your password" /><button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600 transition">{showPw ? <FiEyeOff size={16} /> : <FiEye size={16} />}</button></div></div>
               <button type="submit" disabled={loading} className="w-full py-3 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-primary-600/25">{loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}{loading ? 'Signing in...' : 'Sign In'}</button>
+              <div className="flex items-center justify-between text-xs pt-1">
+                <Link to="/register" className="text-primary-600 font-medium hover:underline">Create account</Link>
+                <Link to="/forgot-password" className="text-secondary-500 hover:text-primary-600 hover:underline">Forgot password?</Link>
+              </div>
             </form>
           </div>
         </div>
