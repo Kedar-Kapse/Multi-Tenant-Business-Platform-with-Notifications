@@ -31,11 +31,18 @@ public class OtpNotificationListener {
                 event.getEventId(), p.getChannel(), p.getPurpose());
 
         int ttl = p.getTtlSeconds() != null ? p.getTtlSeconds() : 60;
-        if ("CALL".equalsIgnoreCase(p.getChannel())) {
-            // Voice-call OTP stays mocked until an IVR provider (Twilio/Exotel) is wired up.
-            callService.placeOtpCall(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl, p.getTenantRealm());
-        } else {
-            emailService.sendOtp(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl);
+        try {
+            if ("CALL".equalsIgnoreCase(p.getChannel())) {
+                // Voice-call OTP stays mocked until an IVR provider (Twilio/Exotel) is wired up.
+                callService.placeOtpCall(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl, p.getTenantRealm());
+            } else {
+                emailService.sendOtp(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl);
+            }
+        } catch (EmailService.MailDeliveryException e) {
+            // Swallow and move on. Re-delivering won't help (likely invalid address) and
+            // the OTP is time-boxed. In production this is where we'd hand off to a DLT.
+            log.warn("Dropping OTP_REQUESTED event after mail failure: identifier={} cause={}",
+                    p.getIdentifier(), e.getMessage());
         }
     }
 }

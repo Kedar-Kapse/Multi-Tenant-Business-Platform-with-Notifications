@@ -26,6 +26,11 @@ public class PatientNotificationListener {
             return;
         }
         log.info("Received PATIENT_CREATED eventId={} tenant={}", event.getEventId(), event.getTenantId());
-        emailService.sendRegistrationLink(p.getEmail(), p.getFirstName(), p.getRegistrationLink());
+        try {
+            emailService.sendRegistrationLink(p.getEmail(), p.getFirstName(), p.getRegistrationLink());
+        } catch (EmailService.MailDeliveryException e) {
+            log.warn("Dropping PATIENT_CREATED event after mail failure: email={} cause={}",
+                    p.getEmail(), e.getMessage());
+        }
     }
 }
