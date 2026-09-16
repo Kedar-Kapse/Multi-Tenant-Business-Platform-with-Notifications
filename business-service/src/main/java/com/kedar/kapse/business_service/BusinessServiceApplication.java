@@ -12,6 +12,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @ComponentScan(
@@ -24,16 +25,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableDiscoveryClient
 @EnableFeignClients
 @EnableCaching
-@EntityScan(basePackages = {
-    "com.kedar.kapse.platform_core.entity",
-    "com.kedar.kapse.business_service.entity",
-    "com.kedar.kapse.business_service.Practice"
-})
-@EnableJpaRepositories(basePackages = {
-    "com.kedar.kapse.platform_core.repository",
-    "com.kedar.kapse.business_service.repository",
-    "com.kedar.kapse.business_service.Practice"
-})
+@EnableScheduling
+@EntityScan(basePackages = "com.kedar.kapse.business_service.entity")
+@EnableJpaRepositories(basePackages = "com.kedar.kapse.business_service.repository")
 @Slf4j
 public class BusinessServiceApplication implements CommandLineRunner {
 

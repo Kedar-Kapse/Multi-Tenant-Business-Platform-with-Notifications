@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import useAuthStore from './store/authStore';
 import PrivateRoute from './components/PrivateRoute';
 import PatientLayout from './components/layout/PatientLayout';
 import LoginPage from './pages/login/LoginPage';
@@ -16,6 +18,15 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 import ProfilePage from './pages/profile/ProfilePage';
 
 export default function App() {
+  const init = useAuthStore((s) => s.init);
+  const initialized = useAuthStore((s) => s.initialized);
+
+  useEffect(() => {
+    init();
+  }, [init]);
+
+  if (!initialized) return null;
+
   return (
     <BrowserRouter>
       <Routes>

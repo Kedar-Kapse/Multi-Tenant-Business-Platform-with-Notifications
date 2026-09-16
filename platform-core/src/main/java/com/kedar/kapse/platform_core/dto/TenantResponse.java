@@ -1,6 +1,5 @@
 package com.kedar.kapse.platform_core.dto;
 
-import com.kedar.kapse.platform_core.entity.Tenant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,18 +23,4 @@ public class TenantResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static TenantResponse fromEntity(Tenant tenant) {
-        if (tenant == null) return null;
-
-        return TenantResponse.builder()
-                .id(tenant.getId())
-                .name(tenant.getName())
-                .tenantCode(tenant.getTenantCode())
-                .realmName(tenant.getRealmName())
-                .schemaName(tenant.getSchemaName())
-                .status(tenant.getStatus() != null ? tenant.getStatus().name() : null)
-                .createdAt(tenant.getCreatedAt())
-                .updatedAt(tenant.getUpdatedAt())
-                .build();
-    }
 }

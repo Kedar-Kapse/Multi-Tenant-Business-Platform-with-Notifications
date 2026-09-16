@@ -1,8 +1,8 @@
 package com.kedar.kapse.access_security_service.controller;
 
+import com.kedar.kapse.access_security_service.service.UserService;
 import com.kedar.kapse.platform_core.dto.CreateUserRequest;
 import com.kedar.kapse.platform_core.dto.UserResponse;
-import com.kedar.kapse.access_security_service.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;

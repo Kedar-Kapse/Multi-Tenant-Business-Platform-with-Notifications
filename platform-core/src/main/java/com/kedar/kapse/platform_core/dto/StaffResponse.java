@@ -1,6 +1,5 @@
 package com.kedar.kapse.platform_core.dto;
 
-import com.kedar.kapse.platform_core.entity.Staff;
 import com.kedar.kapse.platform_core.enums.Gender;
 import com.kedar.kapse.platform_core.enums.StaffRole;
 import com.kedar.kapse.platform_core.enums.StaffStatus;
@@ -42,32 +41,4 @@ public class StaffResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static StaffResponse fromEntity(Staff staff) {
-        if (staff == null) return null;
-
-        return StaffResponse.builder()
-                .id(staff.getId())
-                .firstName(staff.getFirstName())
-                .lastName(staff.getLastName())
-                .email(staff.getEmail())
-                .phone(staff.getPhone())
-                .role(staff.getRole())
-                .dateOfBirth(staff.getDateOfBirth())
-                .gender(staff.getGender())
-                .licenseNumber(staff.getLicenseNumber())
-                .specialization(staff.getSpecialization())
-                .experienceYears(staff.getExperienceYears())
-                .addressLine1(staff.getAddressLine1())
-                .addressLine2(staff.getAddressLine2())
-                .city(staff.getCity())
-                .state(staff.getState())
-                .country(staff.getCountry())
-                .zipCode(staff.getZipCode())
-                .profilePhotoUrl(staff.getProfilePhotoUrl())
-                .keycloakUserId(staff.getKeycloakUserId())
-                .status(staff.getStatus())
-                .createdAt(staff.getCreatedAt())
-                .updatedAt(staff.getUpdatedAt())
-                .build();
-    }
 }

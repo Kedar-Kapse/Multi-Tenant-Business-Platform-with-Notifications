@@ -1,9 +1,9 @@
 package com.kedar.kapse.access_security_service.controller;
 
+import com.kedar.kapse.access_security_service.service.TenantService;
 import com.kedar.kapse.platform_core.dto.CreateTenantRequest;
 import com.kedar.kapse.platform_core.dto.TenantResponse;
 import com.kedar.kapse.platform_core.dto.UpdateTenantRequest;
-import com.kedar.kapse.access_security_service.service.TenantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

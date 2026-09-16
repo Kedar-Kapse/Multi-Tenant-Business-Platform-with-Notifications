@@ -1,9 +1,8 @@
 package com.kedar.kapse.admin_service.config;
 
-import com.restore.core.security.CustomAuthenticationManager;
-import com.restore.core.security.RestoreSecurityConstants;
-import com.restore.core.security.TenantContextHolder;
-import com.restore.core.security.TenantFilter;
+import com.kedar.kapse.platform_core.security.CustomAuthenticationManager;
+import com.kedar.kapse.platform_core.security.SecurityConstants;
+import com.kedar.kapse.platform_core.security.TenantContextHolder;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,8 +10,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.lang.NonNull;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -20,18 +17,13 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
 /**
- * Admin Service — Restore Production security configuration.
- *
- * Admin-service is a lightweight monitoring tool that does NOT depend on
- * platform-core's full component scan. It provides its own TenantFilter
- * inline and uses CustomAuthenticationManager for manual Nimbus JWT validation.
- *
+ * Admin Service security configuration.
+ * Uses CustomAuthenticationManager for manual Nimbus JWT validation.
  * All endpoints require ADMIN role except health checks.
  */
 @Configuration
@@ -80,7 +72,7 @@ public class AdminSecurityConfig {
                 @NonNull HttpServletResponse response,
                 @NonNull FilterChain filterChain) throws ServletException, IOException {
             try {
-                String tenantId = request.getHeader(RestoreSecurityConstants.TENANT_HEADER);
+                String tenantId = request.getHeader(SecurityConstants.TENANT_HEADER);
                 if (tenantId != null && !tenantId.isBlank()) {
                     tenantId = tenantId.trim().toLowerCase();
                     if (tenantId.matches("^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$")

@@ -1,7 +1,7 @@
 package com.kedar.kapse.access_security_service.service;
 
-import com.kedar.kapse.platform_core.repository.TenantRepository;
-import com.kedar.kapse.platform_core.repository.UserRepository;
+import com.kedar.kapse.access_security_service.repository.TenantRepository;
+import com.kedar.kapse.access_security_service.repository.UserRepository;
 import com.kedar.kapse.platform_core.enums.TenantStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

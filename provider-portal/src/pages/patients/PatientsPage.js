@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiSearch, FiUser, FiMail, FiX } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiUser, FiMail, FiX, FiEye, FiEyeOff, FiRefreshCw } from 'react-icons/fi';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
@@ -18,8 +18,10 @@ const STATUS_COLORS = {
 const emptyForm = {
   firstName: '', lastName: '', email: '', phone: '',
   dateOfBirth: '', gender: '',
+  mrn: '', ssn: '',
   addressLine1: '', addressLine2: '', city: '', state: '', country: '', zipCode: '',
   locationCode: '',
+  pccSyncRequired: false,
 };
 
 const inputClass =
@@ -52,6 +54,8 @@ export default function PatientsPage() {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showSsn, setShowSsn] = useState(false);
+  const [syncing, setSyncing] = useState(null);
   const [toast, setToast] = useState(null);
 
   const showToast = (msg, type = 'success') => {
@@ -89,8 +93,26 @@ export default function PatientsPage() {
     if (!form.email.trim()) e.email = 'Required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email';
     if (form.phone && !/^[+]?[0-9\-\s()]{7,20}$/.test(form.phone)) e.phone = 'Invalid phone';
+    if (!form.mrn.trim()) e.mrn = 'MRN is required';
+    if (!form.ssn.trim()) e.ssn = 'SSN is required';
+    else if (!/^\d{3}-\d{2}-\d{4}$|^\d{9}$/.test(form.ssn.trim())) e.ssn = 'Format: 123-45-6789 or 9 digits';
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const openCreate = () => { setForm(emptyForm); setErrors({}); setShowSsn(false); setModalOpen(true); };
+
+  const handleSyncPcc = async (patientId) => {
+    setSyncing(patientId);
+    try {
+      await patientApi.syncToPcc(patientId);
+      showToast('PCC sync triggered — patient will be synced shortly');
+      load();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to trigger PCC sync', 'error');
+    } finally {
+      setSyncing(null);
+    }
   };
 
   const handleSave = async () => {
@@ -98,7 +120,8 @@ export default function PatientsPage() {
     setSaving(true);
     try {
       const payload = {};
-      Object.entries(form).forEach(([k, v]) => { payload[k] = v === '' ? null : v; });
+      Object.entries(form).forEach(([k, v]) => { payload[k] = (v === '' || v === undefined) ? null : v; });
+      payload.pccSyncRequired = form.pccSyncRequired === true;
       if (providerId) {
         await patientApi.createForProvider(providerId, payload);
       } else {
@@ -109,9 +132,13 @@ export default function PatientsPage() {
       setForm(emptyForm);
       load();
     } catch (err) {
+      const status = err?.response?.status;
       const data = err?.response?.data;
       if (data?.fieldErrors) setErrors(data.fieldErrors);
-      showToast(data?.message || 'Failed to create patient', 'error');
+      const message = status === 409 || (status === 400 && data?.message?.includes('already exists'))
+        ? (data?.message || 'A patient with this email, MRN, or SSN already exists.')
+        : (data?.message || 'Failed to create patient. Please try again.');
+      showToast(message, 'error');
     } finally {
       setSaving(false);
     }
@@ -136,7 +163,7 @@ export default function PatientsPage() {
             {totalElements > 0 && <span className="ml-2 text-secondary-400">({totalElements} total)</span>}
           </p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setErrors({}); setModalOpen(true); }} className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition w-full sm:w-auto">
+        <button onClick={openCreate} className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition w-full sm:w-auto">
           <FiPlus size={16} /> Add Patient
         </button>
       </div>
@@ -173,8 +200,32 @@ export default function PatientsPage() {
               </div>
               <div className="space-y-1.5 text-xs text-secondary-500">
                 <div className="flex items-center gap-2"><FiMail size={12} /><span className="truncate">{p.email}</span></div>
+                {p.mrn && <div className="font-mono text-secondary-400">MRN: {p.mrn}</div>}
                 {p.phone && <div className="flex items-center gap-2">📱<span>{p.phone}</span></div>}
                 {p.dateOfBirth && <div className="text-secondary-400">DOB: {p.dateOfBirth}</div>}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-secondary-100 dark:border-secondary-700">
+                <div className="flex items-center gap-2">
+                  {p.pccSyncStatus ? (
+                    <Badge variant={
+                      p.pccSyncStatus === 'SYNCED'      ? 'success' :
+                      p.pccSyncStatus === 'FAILED'      ? 'danger'  :
+                      p.pccSyncStatus === 'IN_PROGRESS' ? 'info'    : 'warning'
+                    }>
+                      PCC: {p.pccSyncStatus}
+                    </Badge>
+                  ) : (
+                    <span className="text-xs text-secondary-400">No PCC sync</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleSyncPcc(p.id)}
+                  disabled={syncing === p.id || p.pccSyncStatus === 'IN_PROGRESS'}
+                  title={p.pccSyncStatus === 'SYNCED' ? 'Re-sync to PCC' : 'Sync to PCC'}
+                  className="p-1.5 rounded-lg text-secondary-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-30 transition"
+                >
+                  <FiRefreshCw size={13} className={syncing === p.id ? 'animate-spin' : ''} />
+                </button>
               </div>
             </div>
           ))}
@@ -191,35 +242,87 @@ export default function PatientsPage() {
         )}
       </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Register New Patient" size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add Patient" size="lg">
         <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="First Name" required error={errors.firstName}>
-              <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="Last Name" required error={errors.lastName}>
-              <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="Email" required error={errors.email}>
-              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} className={inputClass} placeholder="patient@example.com" />
-            </Field>
-            <Field label="Phone" error={errors.phone}>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="Date of Birth">
-              <input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="Gender">
-              <select value={form.gender} onChange={e => set('gender', e.target.value)} className={inputClass}>
-                <option value="">—</option>
-                {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0) + g.slice(1).toLowerCase()}</option>)}
-              </select>
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="Location Code (optional)">
-                <input value={form.locationCode} onChange={e => set('locationCode', e.target.value)} className={inputClass} placeholder="e.g. CLINIC-A" />
+
+          <div>
+            <h3 className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">Patient Information</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="First Name" required error={errors.firstName}>
+                <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Last Name" required error={errors.lastName}>
+                <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Email" required error={errors.email}>
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} className={inputClass} placeholder="patient@example.com" />
+              </Field>
+              <Field label="Phone" error={errors.phone}>
+                <input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputClass} placeholder="+1 (555) 123-4567" />
+              </Field>
+              <Field label="Date of Birth">
+                <input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Gender">
+                <select value={form.gender} onChange={e => set('gender', e.target.value)} className={inputClass}>
+                  <option value="">—</option>
+                  {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0) + g.slice(1).toLowerCase()}</option>)}
+                </select>
               </Field>
             </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">Identity &amp; Records</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="MRN (Medical Record Number)" required error={errors.mrn}>
+                <input
+                  value={form.mrn}
+                  onChange={e => set('mrn', e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. MRN-00123"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="SSN (Social Security Number)" required error={errors.ssn}>
+                <div className="relative">
+                  <input
+                    type={showSsn ? 'text' : 'password'}
+                    value={form.ssn}
+                    onChange={e => set('ssn', e.target.value)}
+                    className={inputClass + ' pr-10'}
+                    placeholder="123-45-6789"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSsn(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600"
+                    tabIndex={-1}
+                  >
+                    {showSsn ? <FiEyeOff size={15} /> : <FiEye size={15} />}
+                  </button>
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">PCC Integration</h3>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.pccSyncRequired}
+                onChange={e => set('pccSyncRequired', e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-secondary-700 dark:text-secondary-300">
+                Sync this patient to PointClickCare (PCC) immediately after creation
+                <span className="block text-xs text-secondary-400 mt-0.5">
+                  Leave unchecked if PCC sync is not required for this patient.
+                </span>
+              </span>
+            </label>
           </div>
 
           <div>
@@ -228,12 +331,16 @@ export default function PatientsPage() {
               <div className="sm:col-span-2">
                 <Field label="Address Line 1"><input value={form.addressLine1} onChange={e => set('addressLine1', e.target.value)} className={inputClass} /></Field>
               </div>
+              <div className="sm:col-span-2">
+                <Field label="Address Line 2"><input value={form.addressLine2} onChange={e => set('addressLine2', e.target.value)} className={inputClass} /></Field>
+              </div>
               <Field label="City"><input value={form.city} onChange={e => set('city', e.target.value)} className={inputClass} /></Field>
               <Field label="State"><input value={form.state} onChange={e => set('state', e.target.value)} className={inputClass} /></Field>
               <Field label="Country"><input value={form.country} onChange={e => set('country', e.target.value)} className={inputClass} /></Field>
               <Field label="Zip"><input value={form.zipCode} onChange={e => set('zipCode', e.target.value)} className={inputClass} /></Field>
             </div>
           </div>
+
         </div>
 
         <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-secondary-100 dark:border-secondary-700">

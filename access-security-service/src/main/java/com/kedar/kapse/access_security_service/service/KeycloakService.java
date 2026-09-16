@@ -1,6 +1,7 @@
 package com.kedar.kapse.access_security_service.service;
 
 import com.kedar.kapse.platform_core.dto.CreateUserRequest;
+import com.kedar.kapse.platform_core.enums.KeycloakRole;
 import com.kedar.kapse.platform_core.security.TenantContext;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,8 @@ import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.*;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Multi-tenant Keycloak administration service.
@@ -31,9 +33,7 @@ public class KeycloakService {
 
     private static final String BACKEND_CLIENT_ID = "platform-backend";
     private static final String FRONTEND_CLIENT_ID = "platform-frontend";
-    private static final String[] DEFAULT_REALM_ROLES = {
-            "ADMIN", "PROVIDER", "THERAPIST", "PHYSICIAN", "NURSE", "PATIENT"
-    };
+    private static final KeycloakRole[] DEFAULT_REALM_ROLES = KeycloakRole.values();
     private static final String[] DEFAULT_CLIENT_PERMISSIONS = {
             "READ_PATIENT", "UPDATE_PATIENT", "CREATE_PATIENT", "DELETE_PATIENT",
             "MANAGE_STAFF", "MANAGE_FACILITY", "VIEW_REPORTS", "MANAGE_PHARMACY"
@@ -155,19 +155,19 @@ public class KeycloakService {
     /**
      * Assigns a realm-level role to a user.
      */
-    public void assignRole(String userId, String roleName) {
+    public void assignRole(String userId, KeycloakRole keycloakRole) {
         String realm = TenantContext.getRequiredTenantId();
-        assignRoleInRealm(realm, userId, roleName);
+        assignRoleInRealm(realm, userId, keycloakRole);
     }
 
-    public void assignRoleInRealm(String realm, String userId, String roleName) {
+    public void assignRoleInRealm(String realm, String userId, KeycloakRole keycloakRole) {
         RealmResource realmResource = keycloakAdmin.realm(realm);
-        RoleRepresentation role = realmResource.roles().get(roleName).toRepresentation();
+        RoleRepresentation role = realmResource.roles().get(keycloakRole.name()).toRepresentation();
         realmResource.users().get(userId)
                 .roles()
                 .realmLevel()
                 .add(Collections.singletonList(role));
-        log.info("Assigned role '{}' to user '{}' in realm '{}'", roleName, userId, realm);
+        log.info("Assigned role '{}' to user '{}' in realm '{}'", keycloakRole.name(), userId, realm);
     }
 
     /**
@@ -253,15 +253,15 @@ public class KeycloakService {
 
     private void createDefaultRoles(String realm) {
         RealmResource realmResource = keycloakAdmin.realm(realm);
-        for (String roleName : DEFAULT_REALM_ROLES) {
+        for (KeycloakRole keycloakRole : DEFAULT_REALM_ROLES) {
             try {
                 RoleRepresentation role = new RoleRepresentation();
-                role.setName(roleName);
-                role.setDescription("Healthcare role: " + roleName);
+                role.setName(keycloakRole.name());
+                role.setDescription("Healthcare role: " + keycloakRole.name());
                 realmResource.roles().create(role);
-                log.info("Created realm role '{}' in realm '{}'", roleName, realm);
+                log.info("Created realm role '{}' in realm '{}'", keycloakRole.name(), realm);
             } catch (Exception e) {
-                log.debug("Role '{}' may already exist in realm '{}': {}", roleName, realm, e.getMessage());
+                log.debug("Role '{}' may already exist in realm '{}': {}", keycloakRole.name(), realm, e.getMessage());
             }
         }
     }

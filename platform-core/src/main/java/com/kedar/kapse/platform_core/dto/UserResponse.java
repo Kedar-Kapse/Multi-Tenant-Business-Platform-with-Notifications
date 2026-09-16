@@ -1,6 +1,5 @@
 package com.kedar.kapse.platform_core.dto;
 
-import com.kedar.kapse.platform_core.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,16 +19,4 @@ public class UserResponse {
     private String lastName;
     private String tenantName;
 
-    public static UserResponse fromEntity(User user) {
-        if (user == null) return null;
-
-        return UserResponse.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .tenantName(user.getTenant() != null ? user.getTenant().getName() : null)
-                .build();
-    }
 }

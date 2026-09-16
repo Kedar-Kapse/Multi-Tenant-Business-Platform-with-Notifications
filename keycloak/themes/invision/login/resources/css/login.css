@@ -1,0 +1,324 @@
+/* KayCare brand theme for Keycloak's hosted login page.
+   Full-page design: dark green background, yellow abstract accent
+   shape, serif "WELCOME" heading, underline-style inputs.
+   Selectors confirmed against the actual rendered HTML of this
+   Keycloak version (PatternFly 4 based), plus custom .invision-fp-*
+   classes added by our own template.ftl override. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #0d9488 !important;
+  background-image: none !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.invision-fp-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+/* Big abstract white blob accent, right side of the page */
+.invision-fp-shape {
+  position: absolute;
+  top: -20%;
+  right: -18%;
+  width: 65%;
+  height: 140%;
+  background: #ffffff;
+  border-radius: 42% 58% 55% 45% / 55% 45% 55% 45%;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invision-fp-shape-icon {
+  width: 50%;
+  max-width: 480px;
+  opacity: 0.9;
+  position: relative;
+  z-index: 1;
+}
+
+/* Pulsing glow behind the cross, like a heartbeat "thump" */
+.invision-pulse-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: invisionGlow 1.6s ease-in-out infinite;
+}
+
+@keyframes invisionGlow {
+  0%, 100% { r: 68; opacity: 0.12; }
+  50% { r: 88; opacity: 0.28; }
+}
+
+/* Moving "energy" along the heartbeat line, like a live monitor sweep */
+.invision-pulse-line {
+  stroke-dasharray: 10 8;
+  animation: invisionDash 1s linear infinite;
+}
+
+@keyframes invisionDash {
+  to { stroke-dashoffset: -36; }
+}
+
+/* Faint dot-grid texture across the whole shape, so it's not flat white */
+.invision-fp-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(#0d9488 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+  opacity: 0.12;
+  z-index: 0;
+}
+
+/* Typewriter-effect quote, two lines, typed in sequence */
+.invision-fp-quote {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  text-align: center;
+}
+
+.invision-fp-quote-line {
+  overflow: hidden;
+  white-space: nowrap;
+  margin: 0 auto 8px;
+  font-family: "Alex Brush", "Brush Script MT", cursive;
+  font-size: 42px;
+  font-weight: 400;
+  color: #0d9488;
+  border-right: 3px solid #0d9488;
+  width: 0;
+}
+
+.invision-fp-quote-line1 {
+  animation: invisionType1 1.8s steps(26) forwards,
+             invisionBlink 0.7s step-end 4;
+}
+
+.invision-fp-quote-line2 {
+  animation: invisionType2 1.8s steps(27) 2s forwards,
+             invisionBlink 0.7s step-end infinite 2s;
+}
+
+@keyframes invisionType1 {
+  from { width: 0; }
+  to { width: 500px; border-color: transparent; }
+}
+
+@keyframes invisionType2 {
+  from { width: 0; }
+  to { width: 520px; }
+}
+
+@keyframes invisionBlink {
+  50% { border-color: transparent; }
+}
+
+.invision-fp-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 460px;
+  padding: 40px 24px 40px 64px;
+  color: #ffffff;
+}
+
+.invision-fp-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.invision-fp-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20fill='none'%20stroke='white'%20stroke-width='1.8'%20stroke-linecap='round'%20stroke-linejoin='round'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M12%2022s8-4%208-10V5l-8-3-8%203v7c0%206%208%2010%208%2010z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 18px 18px;
+}
+
+.invision-fp-logo-text {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.invision-fp-welcome {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 0 0 6px;
+  color: #ffffff;
+}
+
+.invision-fp-tagline {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 6px;
+}
+
+.invision-fp-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 28px;
+}
+
+/* The Keycloak form card, restyled to blend into the dark page */
+.card-pf {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  width: 100%;
+}
+
+/* Hide the default page title text; "WELCOME" above replaces it visually,
+   but we keep the element in the DOM for accessibility/screen readers. */
+#kc-page-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+#kc-header-wrapper {
+  display: none;
+}
+
+.login-pf-header {
+  margin-bottom: 8px;
+}
+
+.pf-c-form__label-text {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+.form-group {
+  margin-bottom: 22px;
+}
+
+.pf-c-form-control {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0;
+  padding: 8px 2px;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.pf-c-form-control::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Override PatternFly's built-in invalid-field pattern (red tiled icon
+   background) shown when Keycloak marks a field aria-invalid="true"
+   after a failed login. Higher specificity than PatternFly's own rule. */
+.pf-c-form-control[aria-invalid="true"] {
+  background: transparent !important;
+  background-image: none !important;
+  border-bottom: 2px solid #ff8a8a !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* Stop Chrome's autofill yellow/light box from overriding the underline style */
+.pf-c-form-control:-webkit-autofill,
+.pf-c-form-control:-webkit-autofill:hover,
+.pf-c-form-control:-webkit-autofill:focus,
+.pf-c-form-control:-webkit-autofill:active {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-box-shadow: 0 0 0px 1000px #0d9488 inset;
+  box-shadow: 0 0 0px 1000px #0d9488 inset;
+  transition: background-color 9999s ease-in-out 0s;
+  caret-color: #ffffff;
+}
+
+.pf-c-form-control:focus {
+  border-bottom-color: #ffffff;
+  box-shadow: none;
+  outline: none;
+}
+
+#kc-form-buttons .pf-c-button.pf-m-primary {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #0d9488 !important;
+  border-radius: 8px;
+  font-weight: 700;
+  padding: 12px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+#kc-form-buttons .pf-c-button.pf-m-primary:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+}
+
+#kc-form-options a,
+.login-pf-settings a {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+#kc-form-options a:hover,
+.login-pf-settings a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.alert,
+.alert-error {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  color: #ffb4b4;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.invision-fp-footer {
+  position: absolute;
+  bottom: 24px;
+  left: 64px;
+  z-index: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 700px) {
+  .invision-fp-content { padding: 32px 24px; max-width: 100%; }
+  .invision-fp-welcome { font-size: 34px; }
+  .invision-fp-shape { width: 90%; right: -35%; }
+  .invision-fp-footer { left: 24px; }
+}

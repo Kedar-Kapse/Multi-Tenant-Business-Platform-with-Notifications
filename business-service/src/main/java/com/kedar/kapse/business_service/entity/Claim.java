@@ -1,7 +1,10 @@
 package com.kedar.kapse.business_service.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -24,12 +27,14 @@ public class Claim {
     @Column(nullable = false, length = 150)
     private String patientName;
 
+    // NOTE: patientId stays as String (design choice: aggregate root pattern, not JPA FK)
     @Column(length = 100)
     private String patientId;
 
     @Column(nullable = false, length = 150)
     private String payerName;
 
+    // NOTE: provider stays as String because Staff lives in access-security-service (cross-service ref)
     @Column(length = 150)
     private String provider;
 

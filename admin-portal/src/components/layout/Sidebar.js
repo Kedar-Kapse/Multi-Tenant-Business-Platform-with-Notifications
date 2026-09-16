@@ -6,7 +6,7 @@ import {
   FiGrid, FiUsers, FiUserPlus, FiFileText, FiPackage,
   FiDollarSign, FiCreditCard, FiShield, FiList, FiLock,
   FiSettings, FiChevronLeft, FiActivity, FiBell,
-  FiKey, FiMonitor,
+  FiKey, FiMonitor, FiMessageSquare,
 } from 'react-icons/fi';
 
 const sections = [
@@ -43,6 +43,7 @@ const sections = [
 ];
 
 const bottomItems = [
+  { label: 'Messages', icon: FiMessageSquare, path: '/messages' },
   { label: 'Notifications', icon: FiBell, path: '/notifications', badge: true },
   { label: 'Settings', icon: FiSettings, path: '/settings' },
 ];
@@ -78,7 +79,7 @@ export default function Sidebar() {
               <FiActivity className="text-white" size={16} />
             </div>
             <div>
-              <span className="text-sm font-bold text-secondary-900 dark:text-white tracking-tight">HealthAdmin</span>
+              <span className="text-sm font-bold text-secondary-900 dark:text-white tracking-tight">KayCare</span>
               <span className="block text-[10px] text-secondary-400 -mt-0.5">Control Center</span>
             </div>
           </div>

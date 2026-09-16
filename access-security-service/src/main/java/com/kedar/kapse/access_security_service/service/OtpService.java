@@ -1,11 +1,11 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.access_security_service.entity.OtpVerification;
+import com.kedar.kapse.access_security_service.repository.OtpVerificationRepository;
 import com.kedar.kapse.platform_core.dto.OtpGenerateRequest;
 import com.kedar.kapse.platform_core.dto.OtpVerifyRequest;
-import com.kedar.kapse.platform_core.entity.OtpVerification;
 import com.kedar.kapse.platform_core.enums.OtpPurpose;
 import com.kedar.kapse.platform_core.enums.OtpStatus;
-import com.kedar.kapse.platform_core.repository.OtpVerificationRepository;
 import com.kedar.kapse.platform_core.security.TenantContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -136,11 +136,15 @@ public class OtpService {
         return otp.getId();
     }
 
-    @Transactional
-    public String consumeVerificationToken(UUID verificationToken, OtpPurpose expectedPurpose) {
+    /**
+     * Validates the token and returns the identifier WITHOUT consuming it.
+     * Call this first, do all side-effect work, then call consumeVerificationToken at the end.
+     * This way a failure mid-flow leaves the token in VERIFIED state so the user can retry.
+     */
+    @Transactional(readOnly = true)
+    public String validateVerificationToken(UUID verificationToken, OtpPurpose expectedPurpose) {
         OtpVerification otp = otpRepository.findById(verificationToken)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid verification token"));
-
         if (otp.getStatus() != OtpStatus.VERIFIED) {
             throw new IllegalArgumentException("Verification token is not valid (status=" + otp.getStatus() + ")");
         }
@@ -149,14 +153,24 @@ public class OtpService {
         }
         if (otp.getVerifiedAt() == null ||
                 otp.getVerifiedAt().isBefore(LocalDateTime.now().minusMinutes(VERIFIED_TOKEN_TTL_MINUTES))) {
+            throw new IllegalArgumentException("Verification token has expired. Please verify OTP again.");
+        }
+        return otp.getIdentifier();
+    }
+
+    @Transactional
+    public void consumeVerificationToken(UUID verificationToken) {
+        if (verificationToken == null) throw new IllegalArgumentException("Verification token is required");
+        OtpVerification otp = otpRepository.findById(verificationToken)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid verification token"));
+        if (otp.getVerifiedAt() == null ||
+                otp.getVerifiedAt().isBefore(LocalDateTime.now().minusMinutes(VERIFIED_TOKEN_TTL_MINUTES))) {
             otp.setStatus(OtpStatus.EXPIRED);
             otpRepository.save(otp);
             throw new IllegalArgumentException("Verification token has expired. Please verify OTP again.");
         }
-
         otp.setStatus(OtpStatus.CONSUMED);
         otpRepository.save(otp);
-        return otp.getIdentifier();
     }
 
     private static String generateCode(int length) {

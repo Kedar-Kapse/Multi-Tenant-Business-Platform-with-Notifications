@@ -97,7 +97,7 @@ export default function RegisterPage() {
         <div className="bg-primary-600 text-white px-8 py-6">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"><FiShield size={14} /></div>
-            <span className="text-base font-bold">Invision Patient Portal</span>
+            <span className="text-base font-bold">KayCare Patient Portal</span>
           </div>
           <h1 className="text-2xl font-bold">Create your account</h1>
           <p className="text-primary-100 text-sm mt-1">

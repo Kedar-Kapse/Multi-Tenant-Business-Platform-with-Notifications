@@ -1,18 +1,20 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.access_security_service.entity.OtpVerification;
+import com.kedar.kapse.access_security_service.repository.OtpVerificationRepository;
 import com.kedar.kapse.platform_core.dto.OtpGenerateRequest;
 import com.kedar.kapse.platform_core.dto.OtpVerifyRequest;
-import com.kedar.kapse.platform_core.entity.OtpVerification;
 import com.kedar.kapse.platform_core.enums.OtpChannel;
 import com.kedar.kapse.platform_core.enums.OtpPurpose;
 import com.kedar.kapse.platform_core.enums.OtpStatus;
-import com.kedar.kapse.platform_core.repository.OtpVerificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.*;
  * Unit tests for {@link OtpService} — now covering BCrypt hashing + verification.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class OtpServiceTest {
 
     // Low BCrypt cost so tests stay snappy. Still hash-based.
@@ -201,9 +204,13 @@ class OtpServiceTest {
                 .build();
         when(otpRepository.findById(id)).thenReturn(Optional.of(verified));
 
-        String identifier = otpService.consumeVerificationToken(id, OtpPurpose.REGISTRATION);
-
+        // validate returns the identifier without consuming
+        String identifier = otpService.validateVerificationToken(id, OtpPurpose.REGISTRATION);
         assertThat(identifier).isEqualTo("user@example.com");
+        assertThat(verified.getStatus()).isEqualTo(OtpStatus.VERIFIED);
+
+        // consume flips status to CONSUMED
+        otpService.consumeVerificationToken(id);
         assertThat(verified.getStatus()).isEqualTo(OtpStatus.CONSUMED);
     }
 
@@ -217,7 +224,7 @@ class OtpServiceTest {
                 .build();
         when(otpRepository.findById(id)).thenReturn(Optional.of(pending));
 
-        assertThatThrownBy(() -> otpService.consumeVerificationToken(id, OtpPurpose.REGISTRATION))
+        assertThatThrownBy(() -> otpService.validateVerificationToken(id, OtpPurpose.REGISTRATION))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not valid");
     }

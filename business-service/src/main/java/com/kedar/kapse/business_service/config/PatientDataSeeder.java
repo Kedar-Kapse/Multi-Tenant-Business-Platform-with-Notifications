@@ -1,7 +1,14 @@
 package com.kedar.kapse.business_service.config;
 
-import com.kedar.kapse.business_service.entity.*;
-import com.kedar.kapse.business_service.repository.*;
+import com.kedar.kapse.business_service.entity.Appointment;
+import com.kedar.kapse.business_service.entity.Invoice;
+import com.kedar.kapse.business_service.entity.Message;
+import com.kedar.kapse.business_service.entity.PatientDocument;
+import com.kedar.kapse.business_service.repository.AppointmentRepository;
+import com.kedar.kapse.business_service.repository.InvoiceRepository;
+import com.kedar.kapse.business_service.repository.MessageRepository;
+import com.kedar.kapse.business_service.repository.PatientDocumentRepository;
+import com.kedar.kapse.platform_core.enums.KeycloakRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -81,12 +88,12 @@ public class PatientDataSeeder implements CommandLineRunner {
         if (msgRepo.count() > 0) { log.info("Messages already seeded"); return; }
         String t1 = "thread-cardio-01", t2 = "thread-lab-01", t3 = "thread-rx-01";
         msgRepo.saveAll(List.of(
-            Message.builder().senderId("DOC-001").senderName("Dr. Priya Desai").senderRole("PHYSICIAN").recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole("PATIENT").subject("ECG Results Available").body("Dear Rahul,\n\nYour ECG results are now available in your documents section. The results show normal sinus rhythm. We'll discuss this in detail during your upcoming appointment.\n\nBest regards,\nDr. Priya Desai").threadId(t1).read(true).build(),
-            Message.builder().senderId("PAT-001").senderName("Rahul Sharma").senderRole("PATIENT").recipientId("DOC-001").recipientName("Dr. Priya Desai").recipientRole("PHYSICIAN").subject("Re: ECG Results Available").body("Thank you, Dr. Desai. I noticed my heart rate was 78 bpm — is that normal for my age? Also, should I continue taking the beta-blocker?").threadId(t1).read(true).build(),
-            Message.builder().senderId("DOC-001").senderName("Dr. Priya Desai").senderRole("PHYSICIAN").recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole("PATIENT").subject("Re: ECG Results Available").body("78 bpm is perfectly normal. Yes, please continue the beta-blocker as prescribed. We can review the dosage during your next visit on the 7th.").threadId(t1).read(false).build(),
-            Message.builder().senderId("DOC-002").senderName("Dr. Amit Patel").senderRole("PHYSICIAN").recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole("PATIENT").subject("Lab Results - Action Required").body("Hi Rahul,\n\nYour HbA1c is slightly elevated at 6.1% (pre-diabetic range). I recommend:\n1. Reduce sugar intake\n2. 30 min daily walk\n3. Continue Metformin 500mg\n\nLet's review in 3 months.\n\nDr. Amit Patel").threadId(t2).read(false).build(),
-            Message.builder().senderId("DOC-002").senderName("Dr. Amit Patel").senderRole("PHYSICIAN").recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole("PATIENT").subject("Prescription Renewal").body("Your prescription for Atorvastatin and Metformin has been renewed for 3 months. You can pick it up from MedPlus Pharmacy. The prescription document is uploaded to your records.").threadId(t3).read(false).build(),
-            Message.builder().senderId("DOC-003").senderName("Dr. Sanjay Kumar").senderRole("PHYSICIAN").recipientId("PAT-002").recipientName("Sneha Kulkarni").recipientRole("PATIENT").subject("Therapy Session Follow-up").body("Hi Sneha,\n\nThank you for today's session. Remember to practice the breathing exercises we discussed. Your next appointment is scheduled for next week. The SSRI may take 2-4 weeks to show full effect.\n\nTake care,\nDr. Kumar").threadId("thread-psych-01").read(false).build()
+            Message.builder().senderId("DOC-001").senderName("Dr. Priya Desai").senderRole(KeycloakRole.PHYSICIAN.name()).recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole(KeycloakRole.PATIENT.name()).subject("ECG Results Available").body("Dear Rahul,\n\nYour ECG results are now available in your documents section. The results show normal sinus rhythm. We'll discuss this in detail during your upcoming appointment.\n\nBest regards,\nDr. Priya Desai").threadId(t1).read(true).build(),
+            Message.builder().senderId("PAT-001").senderName("Rahul Sharma").senderRole(KeycloakRole.PATIENT.name()).recipientId("DOC-001").recipientName("Dr. Priya Desai").recipientRole(KeycloakRole.PHYSICIAN.name()).subject("Re: ECG Results Available").body("Thank you, Dr. Desai. I noticed my heart rate was 78 bpm — is that normal for my age? Also, should I continue taking the beta-blocker?").threadId(t1).read(true).build(),
+            Message.builder().senderId("DOC-001").senderName("Dr. Priya Desai").senderRole(KeycloakRole.PHYSICIAN.name()).recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole(KeycloakRole.PATIENT.name()).subject("Re: ECG Results Available").body("78 bpm is perfectly normal. Yes, please continue the beta-blocker as prescribed. We can review the dosage during your next visit on the 7th.").threadId(t1).read(false).build(),
+            Message.builder().senderId("DOC-002").senderName("Dr. Amit Patel").senderRole(KeycloakRole.PHYSICIAN.name()).recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole(KeycloakRole.PATIENT.name()).subject("Lab Results - Action Required").body("Hi Rahul,\n\nYour HbA1c is slightly elevated at 6.1% (pre-diabetic range). I recommend:\n1. Reduce sugar intake\n2. 30 min daily walk\n3. Continue Metformin 500mg\n\nLet's review in 3 months.\n\nDr. Amit Patel").threadId(t2).read(false).build(),
+            Message.builder().senderId("DOC-002").senderName("Dr. Amit Patel").senderRole(KeycloakRole.PHYSICIAN.name()).recipientId("PAT-001").recipientName("Rahul Sharma").recipientRole(KeycloakRole.PATIENT.name()).subject("Prescription Renewal").body("Your prescription for Atorvastatin and Metformin has been renewed for 3 months. You can pick it up from MedPlus Pharmacy. The prescription document is uploaded to your records.").threadId(t3).read(false).build(),
+            Message.builder().senderId("DOC-003").senderName("Dr. Sanjay Kumar").senderRole(KeycloakRole.PHYSICIAN.name()).recipientId("PAT-002").recipientName("Sneha Kulkarni").recipientRole(KeycloakRole.PATIENT.name()).subject("Therapy Session Follow-up").body("Hi Sneha,\n\nThank you for today's session. Remember to practice the breathing exercises we discussed. Your next appointment is scheduled for next week. The SSRI may take 2-4 weeks to show full effect.\n\nTake care,\nDr. Kumar").threadId("thread-psych-01").read(false).build()
         ));
         log.info("Seeded 6 messages");
     }

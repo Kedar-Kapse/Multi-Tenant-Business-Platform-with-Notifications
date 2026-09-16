@@ -1,0 +1,19 @@
+package com.kedar.kapse.platform_core.enums;
+
+public enum AuditAction {
+    REGISTRATION_COMPLETE,
+    PASSWORD_RESET,
+    SELF_SIGNUP,
+    PATIENT_CREATED,
+    PATIENT_UPDATED,
+    PATIENT_DELETED,
+    STAFF_CREATED,
+    STAFF_UPDATED,
+    STAFF_DELETED,
+    TENANT_CREATED,
+    TENANT_UPDATED,
+    TENANT_DELETED,
+    USER_CREATED,
+    USER_UPDATED,
+    USER_DELETED
+}

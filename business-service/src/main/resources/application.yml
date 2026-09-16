@@ -23,6 +23,24 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # acks=all: broker only ACKs after all in-sync replicas have written the message.
+      # Prevents event loss if the leader broker fails between send and ACK.
+      acks: all
+      # enable.idempotence: producer assigns a sequence number per partition; broker deduplicates
+      # retried sends. Prevents duplicate Kafka messages when the network drops an ACK.
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        retries: 2147483647
+    consumer:
+      group-id: business-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Increase max.poll.interval.ms beyond the maximum time a single message
+      # can spend in the listener (ExponentialBackOff max elapsed 120s + PCC timeout 15s).
+      properties:
+        max.poll.interval.ms: 300000
 
 # Restore Production — Manual Nimbus JWT validation via CustomAuthenticationManager
 # No issuer-uri auto-config. ValidateToken fetches JWKS from /realms/{tenant}/protocol/openid-connect/certs
@@ -41,14 +59,66 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${spring.cloud.client.ip-address}:${server.port}
 
+# ==========================================================================
+# SERVICE-TO-SERVICE INTERNAL API KEY
+# Any caller of /internal/** must supply this value in X-INTERNAL-API-KEY.
+# Set INTERNAL_API_KEY to a strong random secret (min 32 chars) in production.
+# ==========================================================================
+internal:
+  api-key: ${INTERNAL_API_KEY:changeme-dev-only}
+
+portal:
+  patient-base-url: ${PATIENT_PORTAL_BASE_URL:http://localhost:3001}
+
+pcc:
+  api:
+    enabled: ${PCC_ENABLED:false}
+    base-url: ${PCC_API_BASE_URL:}
+    client-id: ${PCC_API_CLIENT_ID:}
+    client-secret: ${PCC_API_CLIENT_SECRET:}
+    # OAuth2 token endpoint for PCC client_credentials grant.
+    # Example: https://login.pointclickcare.com/auth/token
+    token-endpoint: ${PCC_API_TOKEN_ENDPOINT:}
+  recovery:
+    # Minutes before an IN_PROGRESS patient is considered stuck and reset to FAILED.
+    stuck-threshold-minutes: ${PCC_RECOVERY_STUCK_THRESHOLD_MINUTES:15}
+    # Minutes before a PENDING patient is considered to have a lost Kafka event.
+    pending-threshold-minutes: ${PCC_RECOVERY_PENDING_THRESHOLD_MINUTES:10}
+    # Cron for stuck IN_PROGRESS recovery (default: every 5 minutes).
+    stuck-cron: ${PCC_RECOVERY_STUCK_CRON:0 */5 * * * *}
+    # Cron for lost PENDING event recovery (default: every 10 minutes).
+    pending-cron: ${PCC_RECOVERY_PENDING_CRON:0 */10 * * * *}
+
+# Resilience4j circuit breaker for PCC API calls.
+# Opens after 5 failures in a 10-call sliding window; stays open for 60s;
+# allows 3 probe calls in half-open state before closing.
+resilience4j:
+  circuitbreaker:
+    instances:
+      pcc-api:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+        record-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+
 management:
   endpoints:
     web:
       exposure:
-        include: "health,info,metrics,loggers,mappings"
+        # circuitbreakers: exposes the pcc-api circuit breaker state at /actuator/health
+        include: "health,info,metrics,loggers,mappings,circuitbreakers"
   endpoint:
     health:
       show-details: always
   health:
     redis:
       enabled: false
+    circuitbreakers:
+      enabled: true

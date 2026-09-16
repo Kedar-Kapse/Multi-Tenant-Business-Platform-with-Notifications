@@ -44,9 +44,23 @@ public class CreatePatientRequest {
     @Size(max = 100) private String country;
     @Size(max = 20)  private String zipCode;
 
+    @NotBlank(message = "MRN is required")
+    @Size(max = 50)
+    private String mrn;
+
+    /** Accepted formats: "123-45-6789" or "123456789". Stored encrypted at rest; never returned in responses. */
+    @NotBlank(message = "SSN is required")
+    @Pattern(regexp = "^\\d{3}-\\d{2}-\\d{4}$|^\\d{9}$",
+             message = "SSN must be in format 123-45-6789 or 9 consecutive digits")
+    private String ssn;
+
     /** When created from Provider Portal, the logged-in provider's staff ID; optional for Admin. */
     private UUID providerId;
 
     @Size(max = 100)
     private String locationCode;
+
+    /** When true, a PCC sync event is published immediately after patient creation. Defaults to false. */
+    @lombok.Builder.Default
+    private boolean pccSyncRequired = false;
 }

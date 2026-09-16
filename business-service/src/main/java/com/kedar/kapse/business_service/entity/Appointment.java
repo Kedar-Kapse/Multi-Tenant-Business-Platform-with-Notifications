@@ -1,19 +1,25 @@
 package com.kedar.kapse.business_service.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity @Table(name = "appointments") @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class Appointment {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
+    // NOTE: patientId stays as String (design choice: aggregate root pattern, not JPA FK)
     @Column(nullable = false, length = 100) private String patientId;
     @Column(nullable = false, length = 150) private String patientName;
+    // NOTE: providerId is String because Staff lives in access-security-service (cross-service ref)
     @Column(nullable = false, length = 100) private String providerId;
     @Column(nullable = false, length = 150) private String providerName;
     @Column(length = 100) private String providerSpecialty;

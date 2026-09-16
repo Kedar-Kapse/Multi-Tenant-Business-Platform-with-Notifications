@@ -1,7 +1,9 @@
 package com.kedar.kapse.access_security_service.service;
 
-import com.kedar.kapse.platform_core.entity.AuditLog;
-import com.kedar.kapse.platform_core.repository.AuditLogRepository;
+import com.kedar.kapse.access_security_service.entity.AuditLog;
+import com.kedar.kapse.access_security_service.repository.AuditLogRepository;
+import com.kedar.kapse.platform_core.enums.AuditAction;
+import com.kedar.kapse.platform_core.enums.AuditEntityType;
 import com.kedar.kapse.platform_core.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,12 +19,12 @@ public class AuditService {
     private final AuditLogRepository auditLogRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void record(String entityType, String entityId, String action, String actorId, String details) {
+    public void record(AuditEntityType entityType, String entityId, AuditAction action, String actorId, String details) {
         try {
             AuditLog entry = AuditLog.builder()
-                    .entityType(entityType)
+                    .entityType(entityType.name())
                     .entityId(entityId)
-                    .action(action)
+                    .action(action.name())
                     .actorId(actorId)
                     .tenantRealm(TenantContext.getTenantId())
                     .details(details)

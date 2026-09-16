@@ -17,8 +17,5 @@ public final class SystemConstants {
     public static final int DEFAULT_MINIMUM_STOCK_LEVEL = 50;
     public static final int EXPIRY_WARNING_DAYS = 90;
 
-    // Healthcare domain
-    public static final String[] HEALTHCARE_ROLES = {
-        "ADMIN", "PROVIDER", "THERAPIST", "PHYSICIAN", "NURSE", "PATIENT"
-    };
+    // Healthcare domain — use KeycloakRole enum directly instead of this array
 }

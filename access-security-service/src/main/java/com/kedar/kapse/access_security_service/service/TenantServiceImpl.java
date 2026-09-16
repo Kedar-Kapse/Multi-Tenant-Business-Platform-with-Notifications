@@ -1,10 +1,11 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.access_security_service.entity.Tenant;
+import com.kedar.kapse.access_security_service.mapper.ResponseMapper;
+import com.kedar.kapse.access_security_service.repository.TenantRepository;
 import com.kedar.kapse.platform_core.dto.CreateTenantRequest;
 import com.kedar.kapse.platform_core.dto.TenantResponse;
 import com.kedar.kapse.platform_core.dto.UpdateTenantRequest;
-import com.kedar.kapse.platform_core.entity.Tenant;
-import com.kedar.kapse.platform_core.repository.TenantRepository;
 import com.kedar.kapse.platform_core.enums.TenantStatus;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -106,7 +107,7 @@ public class TenantServiceImpl implements TenantService {
             throw new RuntimeException("Tenant onboarding failed: " + e.getMessage(), e);
         }
 
-        return TenantResponse.fromEntity(tenant);
+        return ResponseMapper.toTenantResponse(tenant);
     }
 
     @Override
@@ -114,7 +115,7 @@ public class TenantServiceImpl implements TenantService {
     public List<TenantResponse> listTenants() {
         log.debug("Fetching all tenants");
         return tenantRepository.findAll().stream()
-                .map(TenantResponse::fromEntity)
+                .map(ResponseMapper::toTenantResponse)
                 .collect(Collectors.toList());
     }
 
@@ -124,7 +125,7 @@ public class TenantServiceImpl implements TenantService {
         log.debug("Fetching tenant by id={}", tenantId);
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new EntityNotFoundException("Tenant not found with id: " + tenantId));
-        return TenantResponse.fromEntity(tenant);
+        return ResponseMapper.toTenantResponse(tenant);
     }
 
     @Override
@@ -148,7 +149,7 @@ public class TenantServiceImpl implements TenantService {
         }
 
         log.info("Tenant '{}' updated successfully", tenant.getTenantCode());
-        return TenantResponse.fromEntity(tenant);
+        return ResponseMapper.toTenantResponse(tenant);
     }
 
     @Override
@@ -175,7 +176,7 @@ public class TenantServiceImpl implements TenantService {
         tenant = tenantRepository.save(tenant);
 
         log.info("Tenant '{}' activated", tenant.getTenantCode());
-        return TenantResponse.fromEntity(tenant);
+        return ResponseMapper.toTenantResponse(tenant);
     }
 
     // ======================== SCHEMA HELPERS ========================

@@ -102,6 +102,13 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- Kafka — optional so services without Kafka don't pull it in transitively -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
+
     </dependencies>
 
     <build>

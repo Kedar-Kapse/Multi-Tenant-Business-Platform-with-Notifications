@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
-import { FiGrid, FiCalendar, FiUsers, FiFileText, FiBell, FiUser, FiChevronLeft, FiActivity, FiDollarSign, FiShield } from 'react-icons/fi';
+import { FiGrid, FiCalendar, FiUsers, FiFileText, FiBell, FiUser, FiChevronLeft, FiActivity, FiDollarSign, FiShield, FiMessageSquare } from 'react-icons/fi';
 
 const navItems = [
   { label: 'Dashboard', icon: FiGrid, path: '/' },
@@ -8,6 +8,7 @@ const navItems = [
   { label: 'My Patients', icon: FiUsers, path: '/patients' },
   { label: 'Clinical Notes', icon: FiFileText, path: '/notes' },
   { label: 'Claims', icon: FiDollarSign, path: '/claims' },
+  { label: 'Messages', icon: FiMessageSquare, path: '/messages' },
   { label: 'Notifications', icon: FiBell, path: '/notifications' },
   { label: 'My Profile', icon: FiUser, path: '/profile' },
 ];
@@ -38,7 +39,7 @@ export default function Sidebar({ open, toggle }) {
               <FiActivity className="text-white" size={16} />
             </div>
             <div>
-              <span className="text-sm font-bold text-secondary-900 dark:text-white tracking-tight">Invision</span>
+              <span className="text-sm font-bold text-secondary-900 dark:text-white tracking-tight">KayCare</span>
               <span className="block text-[10px] text-secondary-400 -mt-0.5">Provider Portal</span>
             </div>
           </div>

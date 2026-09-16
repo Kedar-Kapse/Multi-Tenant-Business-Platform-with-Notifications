@@ -1,8 +1,8 @@
 package com.kedar.kapse.platform_core.dto;
 
-import com.kedar.kapse.platform_core.entity.Patient;
 import com.kedar.kapse.platform_core.enums.Gender;
 import com.kedar.kapse.platform_core.enums.PatientStatus;
+import com.kedar.kapse.platform_core.enums.PccSyncStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,28 +38,18 @@ public class PatientResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static PatientResponse fromEntity(Patient p) {
-        if (p == null) return null;
-        return PatientResponse.builder()
-                .id(p.getId())
-                .firstName(p.getFirstName())
-                .lastName(p.getLastName())
-                .email(p.getEmail())
-                .phone(p.getPhone())
-                .dateOfBirth(p.getDateOfBirth())
-                .gender(p.getGender())
-                .addressLine1(p.getAddressLine1())
-                .addressLine2(p.getAddressLine2())
-                .city(p.getCity())
-                .state(p.getState())
-                .country(p.getCountry())
-                .zipCode(p.getZipCode())
-                .keycloakUserId(p.getKeycloakUserId())
-                .tenantRealm(p.getTenantRealm())
-                .status(p.getStatus())
-                .registrationCompletedAt(p.getRegistrationCompletedAt())
-                .createdAt(p.getCreatedAt())
-                .updatedAt(p.getUpdatedAt())
-                .build();
-    }
+    private String mrn;
+    private PccSyncStatus pccSyncStatus;
+    private String pccPatientId;
+    /** Last PCC sync error message — populated only when pccSyncStatus = FAILED. */
+    private String pccLastError;
+    private int pccRetryCount;
+
+    // Patient self-service profile fields
+    private String bloodGroup;
+    private String emergencyContact;
+    private String allergies;
+    private String chronicConditions;
+    private String insuranceProvider;
+    private String policyNumber;
 }

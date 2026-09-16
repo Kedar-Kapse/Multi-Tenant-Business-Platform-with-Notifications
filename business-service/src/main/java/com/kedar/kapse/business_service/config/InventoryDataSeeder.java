@@ -1,16 +1,18 @@
 package com.kedar.kapse.business_service.config;
 
-import com.kedar.kapse.platform_core.entity.Bed;
-import com.kedar.kapse.platform_core.entity.Facility;
-import com.kedar.kapse.platform_core.entity.PharmacyStock;
-import com.kedar.kapse.platform_core.entity.Tenant;
-import com.kedar.kapse.platform_core.enums.*;
-import com.kedar.kapse.platform_core.repository.BedRepository;
-import com.kedar.kapse.platform_core.repository.FacilityRepository;
-import com.kedar.kapse.platform_core.repository.PharmacyStockRepository;
-import com.kedar.kapse.platform_core.repository.TenantRepository;
+import com.kedar.kapse.business_service.entity.Bed;
+import com.kedar.kapse.business_service.entity.Facility;
+import com.kedar.kapse.business_service.entity.PharmacyStock;
+import com.kedar.kapse.business_service.repository.BedRepository;
+import com.kedar.kapse.business_service.repository.FacilityRepository;
+import com.kedar.kapse.business_service.repository.PharmacyStockRepository;
+import com.kedar.kapse.platform_core.enums.BedStatus;
+import com.kedar.kapse.platform_core.enums.BedType;
+import com.kedar.kapse.platform_core.enums.FacilityStatus;
+import com.kedar.kapse.platform_core.enums.MedicineStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -18,7 +20,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -26,10 +28,12 @@ import java.util.Optional;
 @Order(20)
 public class InventoryDataSeeder implements CommandLineRunner {
 
-    private final TenantRepository tenantRepo;
     private final FacilityRepository facilityRepo;
     private final BedRepository bedRepo;
     private final PharmacyStockRepository stockRepo;
+
+    @Value("${inventory.seed.tenant-id:}")
+    private String seedTenantIdStr;
 
     @Override
     public void run(String... args) {
@@ -38,39 +42,42 @@ public class InventoryDataSeeder implements CommandLineRunner {
             return;
         }
 
-        Optional<Tenant> tenantOpt = tenantRepo.findByTenantCode("test");
-        if (tenantOpt.isEmpty()) {
-            log.warn("No 'test' tenant found — skipping inventory seed");
+        if (seedTenantIdStr == null || seedTenantIdStr.isBlank()) {
+            log.info("inventory.seed.tenant-id not configured — skipping inventory seed");
             return;
         }
 
-        Tenant tenant = tenantOpt.get();
-        seedFacilities(tenant);
+        UUID tenantId;
+        try {
+            tenantId = UUID.fromString(seedTenantIdStr);
+        } catch (IllegalArgumentException e) {
+            log.warn("inventory.seed.tenant-id '{}' is not a valid UUID — skipping inventory seed", seedTenantIdStr);
+            return;
+        }
+
+        seedFacilities(tenantId);
     }
 
-    private void seedFacilities(Tenant tenant) {
-        // Facility 1: Main Hospital
+    private void seedFacilities(UUID tenantId) {
         Facility mainHospital = facilityRepo.save(Facility.builder()
-                .tenant(tenant).name("City General Hospital - Main Campus").facilityCode("CGH-MAIN")
+                .tenantId(tenantId).name("City General Hospital - Main Campus").facilityCode("CGH-MAIN")
                 .facilityType("HOSPITAL").address("123 Medical Drive").city("Pune").state("Maharashtra")
                 .zipCode("411001").phone("+91-20-2555-0100").email("main@citygeneral.com")
                 .totalBeds(50).status(FacilityStatus.ACTIVE).build());
 
-        // Facility 2: Clinic
         Facility clinic = facilityRepo.save(Facility.builder()
-                .tenant(tenant).name("Downtown Family Clinic").facilityCode("DFC-01")
+                .tenantId(tenantId).name("Downtown Family Clinic").facilityCode("DFC-01")
                 .facilityType("CLINIC").address("456 Health Street").city("Pune").state("Maharashtra")
                 .zipCode("411002").phone("+91-20-2555-0200").email("clinic@downtown.com")
                 .totalBeds(10).status(FacilityStatus.ACTIVE).build());
 
-        // Facility 3: Pharmacy
         Facility pharmacy = facilityRepo.save(Facility.builder()
-                .tenant(tenant).name("MedPlus Pharmacy").facilityCode("MPH-01")
+                .tenantId(tenantId).name("MedPlus Pharmacy").facilityCode("MPH-01")
                 .facilityType("PHARMACY").address("789 Wellness Road").city("Pune").state("Maharashtra")
                 .zipCode("411003").phone("+91-20-2555-0300").email("info@medplus.com")
                 .totalBeds(0).status(FacilityStatus.ACTIVE).build());
 
-        log.info("Seeded 3 facilities");
+        log.info("Seeded 3 facilities for tenant {}", tenantId);
 
         seedBeds(mainHospital);
         seedBeds(clinic);

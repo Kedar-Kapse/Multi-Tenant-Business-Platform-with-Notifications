@@ -1,6 +1,6 @@
 package com.kedar.kapse.access_security_service.controller;
 
-import com.kedar.kapse.access_security_service.service.KeycloakService;
+import com.kedar.kapse.platform_core.enums.KeycloakRole;
 import com.kedar.kapse.platform_core.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -133,8 +133,15 @@ public class RolePermissionController {
 
     private Map<String, List<String>> getDefaultPermissions(String roleName) {
         Map<String, List<String>> perms = new LinkedHashMap<>();
-        switch (roleName.toUpperCase()) {
-            case "ADMIN":
+        KeycloakRole role;
+        try {
+            role = KeycloakRole.valueOf(roleName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            perms.put("Dashboard", List.of("view"));
+            return perms;
+        }
+        switch (role) {
+            case ADMIN:
                 perms.put("Dashboard", List.of("view", "export"));
                 perms.put("Staff", List.of("view", "create", "edit", "delete"));
                 perms.put("Tenants", List.of("view", "create", "edit", "delete"));
@@ -145,36 +152,33 @@ public class RolePermissionController {
                 perms.put("Audit Logs", List.of("view", "export"));
                 perms.put("Permissions", List.of("view", "create", "edit", "delete"));
                 break;
-            case "PHYSICIAN":
+            case PHYSICIAN:
                 perms.put("Dashboard", List.of("view"));
                 perms.put("Staff", List.of("view"));
                 perms.put("EHR", List.of("view", "create", "edit"));
                 perms.put("Inventory", List.of("view"));
                 perms.put("Claims", List.of("view"));
                 break;
-            case "THERAPIST":
+            case THERAPIST:
                 perms.put("Dashboard", List.of("view"));
                 perms.put("EHR", List.of("view", "create", "edit"));
                 perms.put("Inventory", List.of("view"));
                 break;
-            case "NURSE":
+            case NURSE:
                 perms.put("Dashboard", List.of("view"));
                 perms.put("EHR", List.of("view", "create", "edit"));
                 perms.put("Inventory", List.of("view"));
                 break;
-            case "PATIENT":
+            case PATIENT:
                 perms.put("Dashboard", List.of("view"));
                 perms.put("EHR", List.of("view"));
                 break;
-            case "PROVIDER":
+            case PROVIDER:
                 perms.put("Dashboard", List.of("view"));
                 perms.put("Staff", List.of("view", "create", "edit"));
                 perms.put("EHR", List.of("view", "create", "edit"));
                 perms.put("Inventory", List.of("view", "edit"));
                 perms.put("Claims", List.of("view", "create"));
-                break;
-            default:
-                perms.put("Dashboard", List.of("view"));
                 break;
         }
         return perms;

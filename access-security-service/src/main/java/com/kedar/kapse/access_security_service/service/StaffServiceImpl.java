@@ -1,11 +1,13 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.access_security_service.entity.Staff;
+import com.kedar.kapse.access_security_service.mapper.ResponseMapper;
+import com.kedar.kapse.access_security_service.repository.StaffRepository;
 import com.kedar.kapse.platform_core.dto.CreateStaffRequest;
 import com.kedar.kapse.platform_core.dto.CreateUserRequest;
 import com.kedar.kapse.platform_core.dto.StaffResponse;
 import com.kedar.kapse.platform_core.dto.UpdateStaffRequest;
-import com.kedar.kapse.platform_core.entity.Staff;
-import com.kedar.kapse.platform_core.repository.StaffRepository;
+import com.kedar.kapse.platform_core.enums.KeycloakRole;
 import com.kedar.kapse.platform_core.enums.StaffRole;
 import com.kedar.kapse.platform_core.enums.StaffStatus;
 import com.kedar.kapse.platform_core.security.TenantContext;
@@ -31,14 +33,14 @@ public class StaffServiceImpl implements StaffService {
     /**
      * Maps StaffRole (app-level) to Keycloak realm role name.
      */
-    private static final Map<StaffRole, String> ROLE_TO_KEYCLOAK = Map.of(
-            StaffRole.DOCTOR, "PHYSICIAN",
-            StaffRole.THERAPIST, "THERAPIST",
-            StaffRole.NURSE, "NURSE",
-            StaffRole.PHARMACIST, "PROVIDER",
-            StaffRole.TECHNICIAN, "PROVIDER",
-            StaffRole.BILLING, "ADMIN",
-            StaffRole.ADMIN, "ADMIN"
+    private static final Map<StaffRole, KeycloakRole> ROLE_TO_KEYCLOAK = Map.of(
+            StaffRole.DOCTOR, KeycloakRole.PHYSICIAN,
+            StaffRole.THERAPIST, KeycloakRole.THERAPIST,
+            StaffRole.NURSE, KeycloakRole.NURSE,
+            StaffRole.PHARMACIST, KeycloakRole.PROVIDER,
+            StaffRole.TECHNICIAN, KeycloakRole.PROVIDER,
+            StaffRole.BILLING, KeycloakRole.ADMIN,
+            StaffRole.ADMIN, KeycloakRole.ADMIN
     );
 
     @Override
@@ -69,10 +71,10 @@ public class StaffServiceImpl implements StaffService {
                 log.info("Created Keycloak user '{}' in realm '{}', id={}", username, tenantRealm, keycloakUserId);
 
                 // Step 2: Assign Keycloak realm role
-                String keycloakRole = ROLE_TO_KEYCLOAK.getOrDefault(request.getRole(), "PROVIDER");
+                KeycloakRole keycloakRole = ROLE_TO_KEYCLOAK.getOrDefault(request.getRole(), KeycloakRole.PROVIDER);
                 keycloakService.assignRoleInRealm(tenantRealm, keycloakUserId, keycloakRole);
                 log.info("Assigned Keycloak role '{}' to user '{}' in realm '{}'",
-                        keycloakRole, username, tenantRealm);
+                        keycloakRole.name(), username, tenantRealm);
 
             } catch (Exception e) {
                 log.error("Keycloak user creation failed for '{}': {}", request.getEmail(), e.getMessage());
@@ -105,13 +107,13 @@ public class StaffServiceImpl implements StaffService {
 
         staff = staffRepository.save(staff);
         log.info("Staff created: id={}, email={}, keycloakId={}", staff.getId(), staff.getEmail(), keycloakUserId);
-        return StaffResponse.fromEntity(staff);
+        return ResponseMapper.toStaffResponse(staff);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<StaffResponse> getAllStaff(Pageable pageable) {
-        return staffRepository.findAll(pageable).map(StaffResponse::fromEntity);
+        return staffRepository.findAll(pageable).map(ResponseMapper::toStaffResponse);
     }
 
     @Override
@@ -119,7 +121,7 @@ public class StaffServiceImpl implements StaffService {
     public StaffResponse getStaffById(UUID id) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Staff member not found with id: " + id));
-        return StaffResponse.fromEntity(staff);
+        return ResponseMapper.toStaffResponse(staff);
     }
 
     @Override
@@ -151,7 +153,7 @@ public class StaffServiceImpl implements StaffService {
         staff.setProfilePhotoUrl(request.getProfilePhotoUrl());
 
         staff = staffRepository.save(staff);
-        return StaffResponse.fromEntity(staff);
+        return ResponseMapper.toStaffResponse(staff);
     }
 
     @Override
@@ -193,12 +195,12 @@ public class StaffServiceImpl implements StaffService {
         staff.setStatus(StaffStatus.ACTIVE);
         staff = staffRepository.save(staff);
         log.info("Staff '{}' activated", staff.getEmail());
-        return StaffResponse.fromEntity(staff);
+        return ResponseMapper.toStaffResponse(staff);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<StaffResponse> searchStaff(String query, StaffRole role, StaffStatus status, Pageable pageable) {
-        return staffRepository.searchStaff(query, role, status, pageable).map(StaffResponse::fromEntity);
+        return staffRepository.searchStaff(query, role, status, pageable).map(ResponseMapper::toStaffResponse);
     }
 }

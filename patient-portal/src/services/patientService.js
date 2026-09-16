@@ -39,3 +39,8 @@ export const providerApi = {
 export const ehrApi = {
   getTemplates: () => api.get(`${BUSINESS}/api/ehr/templates`).then(r => r.data),
 };
+
+export const profileApi = {
+  get:    () => api.get(`${BUSINESS}/api/patients/me`).then(r => r.data),
+  update: (data) => api.patch(`${BUSINESS}/api/patients/me`, data).then(r => r.data),
+};

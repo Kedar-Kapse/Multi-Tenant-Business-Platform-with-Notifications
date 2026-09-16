@@ -55,6 +55,15 @@ export const pharmacyApi = {
   delete:      (id) => api.delete(`${PHARM_BASE}/${id}`).then(r => r.data),
 };
 
+// ── Messages (via Business Service) ──
+export const messageApi = {
+  getAll:      (userId) => api.get(`${BUSINESS}/api/messages`, { params: { userId } }).then(r => r.data),
+  getThread:   (threadId) => api.get(`${BUSINESS}/api/messages/thread/${threadId}`).then(r => r.data),
+  unreadCount: (userId) => api.get(`${BUSINESS}/api/messages/unread-count`, { params: { userId } }).then(r => r.data),
+  send:        (data) => api.post(`${BUSINESS}/api/messages`, data).then(r => r.data),
+  markRead:    (id) => api.patch(`${BUSINESS}/api/messages/${id}/read`).then(r => r.data),
+};
+
 // Backward compatibility
 export const inventoryApi = {
   getBeds:       (facilityId) => bedApi.getAll(facilityId),

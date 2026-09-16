@@ -1,5 +1,6 @@
 package com.kedar.kapse.platform_core.security;
 
+import com.kedar.kapse.platform_core.enums.KeycloakRole;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -16,8 +17,8 @@ import java.util.stream.Collectors;
 public enum EnterpriseEligibleRole {
 
     SUPER_ADMIN("super-admin"),
-    ADMIN("ADMIN"),
-    PROVIDER("PROVIDER"),
+    ADMIN(KeycloakRole.ADMIN.name()),
+    PROVIDER(KeycloakRole.PROVIDER.name()),
     ENTERPRISE_ADMIN("ENTERPRISE_ADMIN"),
     TENANT_ADMIN("TENANT_ADMIN"),
     BILLING_ADMIN("BILLING_ADMIN"),

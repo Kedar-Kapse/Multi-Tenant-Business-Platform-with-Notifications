@@ -8,13 +8,23 @@ export const staffApi = {
 };
 
 // Patients
-const PATIENT_BASE = `${ACCESS_SECURITY}/api/v1/patients`;
+const PATIENT_BASE = `${BUSINESS}/api/patients`;
 export const patientApi = {
   list: (page = 0, size = 20, query, status) =>
     api.get(PATIENT_BASE, { params: { page, size, query, status, sortBy: 'createdAt', sortDir: 'desc' } }).then(r => r.data),
   create: (data) => api.post(PATIENT_BASE, data).then(r => r.data),
   createForProvider: (providerId, data) =>
     api.post(`${PATIENT_BASE}/by-provider/${providerId}`, data).then(r => r.data),
+  syncToPcc: (id) => api.post(`${PATIENT_BASE}/${id}/pcc-sync`).then(r => r.data),
+};
+
+// Messages
+export const messageApi = {
+  getAll:      (userId) => api.get(`${BUSINESS}/api/messages`, { params: { userId } }).then(r => r.data),
+  getThread:   (threadId) => api.get(`${BUSINESS}/api/messages/thread/${threadId}`).then(r => r.data),
+  unreadCount: (userId) => api.get(`${BUSINESS}/api/messages/unread-count`, { params: { userId } }).then(r => r.data),
+  send:        (data) => api.post(`${BUSINESS}/api/messages`, data).then(r => r.data),
+  markRead:    (id) => api.patch(`${BUSINESS}/api/messages/${id}/read`).then(r => r.data),
 };
 
 // EHR / Notes

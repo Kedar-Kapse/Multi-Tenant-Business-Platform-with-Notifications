@@ -6,16 +6,20 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 
-@Data                                // Generates Getters, Setters, and toString automatically
-@AllArgsConstructor                  // Creates a constructor with all fields
-@NoArgsConstructor                   // Creates an empty constructor (required for Kafka/JSON)
-@SuperBuilder                        // Lets you build objects easily: BaseEvent.builder()...build()
-public class BaseEvent<T> {          // <T> is a "Generic" - it can carry any data type (User, Order, etc.)
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@SuperBuilder
+public class BaseEvent<T> {
 
-    private String eventId;          // A unique ID to make sure we don't process the same message twice
-    private String tenantId;         // The ID of the organization (tenant) this event belongs to
-    private String eventType;        // The "Label" (e.g., "USER_CREATED") so we know what happened
-    private String source;           // The name of the service that sent this (e.g., "business-service")
-    private long timestamp;          // The exact time it was created (useful for tracking and logs)
-    private T payload;               // The actual "Body" or data of the message (the User or Object)
+    /** Monotonically increasing schema version. Increment when payload fields are added/removed. */
+    @lombok.Builder.Default
+    private String version = "1";
+
+    private String eventId;
+    private String tenantId;
+    private String eventType;
+    private String source;
+    private long timestamp;
+    private T payload;
 }

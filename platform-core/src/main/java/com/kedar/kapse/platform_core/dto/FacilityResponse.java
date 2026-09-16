@@ -1,6 +1,5 @@
 package com.kedar.kapse.platform_core.dto;
 
-import com.kedar.kapse.platform_core.entity.Facility;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,25 +31,4 @@ public class FacilityResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static FacilityResponse fromEntity(Facility facility) {
-        if (facility == null) return null;
-        return FacilityResponse.builder()
-                .id(facility.getId())
-                .tenantId(facility.getTenant() != null ? facility.getTenant().getId() : null)
-                .tenantName(facility.getTenant() != null ? facility.getTenant().getName() : null)
-                .name(facility.getName())
-                .facilityCode(facility.getFacilityCode())
-                .facilityType(facility.getFacilityType())
-                .address(facility.getAddress())
-                .city(facility.getCity())
-                .state(facility.getState())
-                .zipCode(facility.getZipCode())
-                .phone(facility.getPhone())
-                .email(facility.getEmail())
-                .totalBeds(facility.getTotalBeds())
-                .status(facility.getStatus() != null ? facility.getStatus().name() : null)
-                .createdAt(facility.getCreatedAt())
-                .updatedAt(facility.getUpdatedAt())
-                .build();
-    }
 }

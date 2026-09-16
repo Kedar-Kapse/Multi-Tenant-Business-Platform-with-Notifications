@@ -1,11 +1,13 @@
 package com.kedar.kapse.access_security_service.controller;
 
 import com.kedar.kapse.access_security_service.service.KeycloakService;
+import com.kedar.kapse.platform_core.enums.KeycloakRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -55,7 +57,7 @@ public class RealmController {
                 "message", "Tenant realm created successfully",
                 "realm", realmName,
                 "clients", List.of("platform-backend", "platform-frontend"),
-                "roles", List.of("ADMIN", "PROVIDER", "THERAPIST", "PHYSICIAN", "NURSE", "PATIENT"),
+                "roles", Arrays.stream(KeycloakRole.values()).map(Enum::name).toList(),
                 "permissions", List.of("READ_PATIENT", "UPDATE_PATIENT", "CREATE_PATIENT",
                         "DELETE_PATIENT", "MANAGE_STAFF", "MANAGE_FACILITY", "VIEW_REPORTS", "MANAGE_PHARMACY")
         ));

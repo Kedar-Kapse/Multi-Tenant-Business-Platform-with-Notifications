@@ -20,7 +20,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Custom AuthenticationManager for opaque token flow.

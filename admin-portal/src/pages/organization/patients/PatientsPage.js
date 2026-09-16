@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiSearch, FiUser, FiX, FiMail } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiUser, FiX, FiMail, FiEye, FiEyeOff, FiRefreshCw } from 'react-icons/fi';
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
@@ -17,8 +17,10 @@ const STATUS_COLORS = {
 const emptyForm = {
   firstName: '', lastName: '', email: '', phone: '',
   dateOfBirth: '', gender: '',
+  mrn: '', ssn: '',
   addressLine1: '', addressLine2: '', city: '', state: '', country: '', zipCode: '',
   providerId: '',
+  pccSyncRequired: false,
 };
 
 const inputClass =
@@ -50,6 +52,8 @@ export default function PatientsPage() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showSsn, setShowSsn] = useState(false);
+  const [syncing, setSyncing] = useState(null); // patientId currently being synced
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -86,26 +90,52 @@ export default function PatientsPage() {
     if (!form.email.trim()) e.email = 'Required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email';
     if (form.phone && !/^[+]?[0-9\-\s()]{7,20}$/.test(form.phone)) e.phone = 'Invalid phone';
+    if (!form.mrn.trim()) e.mrn = 'MRN is required';
+    if (!form.ssn.trim()) e.ssn = 'SSN is required';
+    else if (!/^\d{3}-\d{2}-\d{4}$|^\d{9}$/.test(form.ssn.trim())) e.ssn = 'Format: 123-45-6789 or 9 digits';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const openCreate = () => { setForm(emptyForm); setErrors({}); setModalOpen(true); };
+  const openCreate = () => { setForm(emptyForm); setErrors({}); setShowSsn(false); setModalOpen(true); };
+
+  const handleSyncPcc = async (patientId) => {
+    setSyncing(patientId);
+    try {
+      await patientApi.syncToPcc(patientId);
+      showToast('PCC sync triggered — patient will be synced shortly');
+      load();
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      showToast(msg || 'Failed to trigger PCC sync', 'error');
+    } finally {
+      setSyncing(null);
+    }
+  };
 
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
     try {
       const payload = {};
-      Object.entries(form).forEach(([k, v]) => { payload[k] = v === '' ? null : v; });
+      Object.entries(form).forEach(([k, v]) => {
+        payload[k] = (v === '' || v === undefined) ? null : v;
+      });
+      payload.pccSyncRequired = form.pccSyncRequired === true;
       await patientApi.create(payload);
       showToast('Patient created — registration email dispatched');
       setModalOpen(false);
       load();
     } catch (err) {
+      const status = err?.response?.status;
       const data = err?.response?.data;
       if (data?.fieldErrors) setErrors(data.fieldErrors);
-      showToast(data?.message || 'Failed to create patient', 'error');
+      const message = status === 403
+        ? 'You do not have permission to create patients.'
+        : status === 409 || (status === 400 && data?.message?.includes('already exists'))
+        ? (data?.message || 'A patient with this email, MRN, or SSN already exists.')
+        : (data?.message || 'Failed to create patient. Please try again.');
+      showToast(message, 'error');
     } finally {
       setSaving(false);
     }
@@ -156,21 +186,23 @@ export default function PatientsPage() {
             <thead>
               <tr className="bg-secondary-50 dark:bg-secondary-800/50 text-secondary-500 text-xs uppercase tracking-wider">
                 <th className="px-5 py-3 text-left font-medium">Patient</th>
+                <th className="px-5 py-3 text-left font-medium">MRN</th>
                 <th className="px-5 py-3 text-left font-medium">Email</th>
                 <th className="px-5 py-3 text-left font-medium">Phone</th>
                 <th className="px-5 py-3 text-left font-medium">DOB</th>
                 <th className="px-5 py-3 text-left font-medium">Status</th>
+                <th className="px-5 py-3 text-left font-medium">PCC Sync</th>
                 <th className="px-5 py-3 text-left font-medium">Created</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-secondary-100 dark:divide-secondary-700/50">
               {loading ? (
-                <tr><td colSpan={6} className="px-5 py-16 text-center text-secondary-400">
+                <tr><td colSpan={8} className="px-5 py-16 text-center text-secondary-400">
                   <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                   Loading patients...
                 </td></tr>
               ) : patients.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-16 text-center text-secondary-400">
+                <tr><td colSpan={8} className="px-5 py-16 text-center text-secondary-400">
                   <FiUser size={24} className="mx-auto mb-2 opacity-50" />
                   No patients found.
                 </td></tr>
@@ -184,10 +216,32 @@ export default function PatientsPage() {
                       <p className="font-medium text-secondary-900 dark:text-white">{p.firstName} {p.lastName}</p>
                     </div>
                   </td>
+                  <td className="px-5 py-3 text-xs font-mono text-secondary-500 dark:text-secondary-400">{p.mrn || '—'}</td>
                   <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400 flex items-center gap-2"><FiMail size={12} />{p.email}</td>
                   <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400">{p.phone || '—'}</td>
                   <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400">{p.dateOfBirth || '—'}</td>
                   <td className="px-5 py-3"><Badge variant={STATUS_COLORS[p.status] || 'gray'} dot>{p.status}</Badge></td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      {p.pccSyncStatus && (
+                        <Badge variant={
+                          p.pccSyncStatus === 'SYNCED'      ? 'success' :
+                          p.pccSyncStatus === 'FAILED'      ? 'danger'  :
+                          p.pccSyncStatus === 'IN_PROGRESS' ? 'info'    : 'warning'
+                        }>
+                          {p.pccSyncStatus}
+                        </Badge>
+                      )}
+                      <button
+                        onClick={() => handleSyncPcc(p.id)}
+                        disabled={syncing === p.id || p.pccSyncStatus === 'IN_PROGRESS'}
+                        title={p.pccSyncStatus === 'SYNCED' ? 'Re-sync to PCC' : 'Sync to PCC'}
+                        className="p-1 rounded text-secondary-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-30 transition"
+                      >
+                        <FiRefreshCw size={13} className={syncing === p.id ? 'animate-spin' : ''} />
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-5 py-3 text-xs text-secondary-400">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>
                 </tr>
               ))}
@@ -233,6 +287,59 @@ export default function PatientsPage() {
                 </select>
               </Field>
             </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">Identity &amp; Records</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="MRN (Medical Record Number)" required error={errors.mrn}>
+                <input
+                  value={form.mrn}
+                  onChange={e => set('mrn', e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. MRN-00123"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="SSN (Social Security Number)" required error={errors.ssn}>
+                <div className="relative">
+                  <input
+                    type={showSsn ? 'text' : 'password'}
+                    value={form.ssn}
+                    onChange={e => set('ssn', e.target.value)}
+                    className={inputClass + ' pr-10'}
+                    placeholder="123-45-6789"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSsn(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600"
+                    tabIndex={-1}
+                  >
+                    {showSsn ? <FiEyeOff size={15} /> : <FiEye size={15} />}
+                  </button>
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">PCC Integration</h3>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.pccSyncRequired}
+                onChange={e => set('pccSyncRequired', e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-secondary-700 dark:text-secondary-300">
+                Sync this patient to PointClickCare (PCC) immediately after creation
+                <span className="block text-xs text-secondary-400 mt-0.5">
+                  Leave unchecked if PCC sync is not required for this patient.
+                </span>
+              </span>
+            </label>
           </div>
 
           <div>

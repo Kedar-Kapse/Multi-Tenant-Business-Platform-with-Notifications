@@ -1,17 +1,17 @@
 package com.kedar.kapse.access_security_service.service;
 
-import com.kedar.kapse.platform_core.entity.Patient;
-import com.kedar.kapse.platform_core.enums.OtpPurpose;
-import com.kedar.kapse.platform_core.enums.PatientStatus;
-import com.kedar.kapse.platform_core.repository.PatientRepository;
+import com.kedar.kapse.access_security_service.client.PatientProvisioningClient;
+import com.kedar.kapse.platform_core.dto.InternalPatientDto;
+import com.kedar.kapse.platform_core.dto.ProvisionPatientRequest;
+import com.kedar.kapse.platform_core.enums.*;
 import com.kedar.kapse.platform_core.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -19,9 +19,9 @@ import java.util.UUID;
 @Slf4j
 public class RegistrationService {
 
-    private static final String PATIENT_REALM_ROLE = "PATIENT";
+    private static final KeycloakRole PATIENT_REALM_ROLE = KeycloakRole.PATIENT;
 
-    private final PatientRepository patientRepository;
+    private final PatientProvisioningClient patientClient;
     private final OtpService otpService;
     private final KeycloakService keycloakService;
     private final AuditService auditService;
@@ -30,19 +30,18 @@ public class RegistrationService {
      * Completes patient registration:
      * <ol>
      *   <li>Consumes the OTP verification token.</li>
-     *   <li>If the Patient row doesn't exist (self-signup path) it auto-provisions
-     *       a disabled Keycloak user, assigns the PATIENT role, and creates the
-     *       Patient row with {@code status = PENDING_REGISTRATION}.</li>
+     *   <li>Looks up the patient via business-service. If not found (self-signup path)
+     *       it auto-provisions a disabled Keycloak user and creates the Patient row
+     *       with {@code status = PENDING_REGISTRATION} via business-service.</li>
      *   <li>Sets the password on the Keycloak user, enables the account, and marks
-     *       the Patient row {@code ACTIVE}.</li>
+     *       the Patient row {@code ACTIVE} via business-service.</li>
      * </ol>
      */
-    @Transactional
     public void completeRegistration(UUID verificationToken, String password) {
-        String identifier = otpService.consumeVerificationToken(verificationToken, OtpPurpose.REGISTRATION);
+        // Validate first (does NOT consume — lets the user retry if anything below fails)
+        String identifier = otpService.validateVerificationToken(verificationToken, OtpPurpose.REGISTRATION);
 
-        Patient patient = patientRepository.findByEmailAndDeletedAtIsNull(identifier)
-                .orElseGet(() -> autoProvisionPatient(identifier));
+        InternalPatientDto patient = findOrProvision(identifier);
 
         if (patient.getStatus() == PatientStatus.ACTIVE) {
             throw new IllegalStateException("Patient is already registered. Please log in.");
@@ -53,22 +52,85 @@ public class RegistrationService {
 
         keycloakService.resetPasswordInRealm(patient.getTenantRealm(), patient.getKeycloakUserId(), password);
         keycloakService.enableUserInRealm(patient.getTenantRealm(), patient.getKeycloakUserId());
+        patientClient.activate(patient.getId());
 
-        patient.setStatus(PatientStatus.ACTIVE);
-        patient.setRegistrationCompletedAt(LocalDateTime.now());
-        patientRepository.save(patient);
+        // Consume only after all side effects succeed — failed attempts leave token VERIFIED for retry
+        otpService.consumeVerificationToken(verificationToken);
 
-        auditService.record("PATIENT", patient.getId().toString(), "REGISTRATION_COMPLETE",
+        auditService.record(AuditEntityType.PATIENT, patient.getId().toString(), AuditAction.REGISTRATION_COMPLETE,
                 patient.getKeycloakUserId(), null);
         log.info("Patient registration completed: email={} keycloakId={}",
                 patient.getEmail(), patient.getKeycloakUserId());
     }
 
     /**
-     * Self-service path: OTP was verified but no Patient/Keycloak user exists.
-     * Provision both now so the outer flow can finish (password + enable).
+     * Forgot-password flow: consumes a FORGOT_PASSWORD OTP token and resets the
+     * Keycloak user's password. Does NOT auto-provision — you cannot reset a password
+     * for an account that was never created.
      */
-    private Patient autoProvisionPatient(String email) {
+    public void resetPassword(UUID verificationToken, String password) {
+        String identifier = otpService.validateVerificationToken(verificationToken, OtpPurpose.FORGOT_PASSWORD);
+
+        ResponseEntity<InternalPatientDto> response = patientClient.findByEmail(identifier);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new EntityNotFoundException("No patient found for identifier: " + identifier);
+        }
+        InternalPatientDto patient = response.getBody();
+
+        if (patient.getKeycloakUserId() == null || patient.getTenantRealm() == null) {
+            throw new IllegalStateException("Patient has no Keycloak user — cannot reset password.");
+        }
+        keycloakService.resetPasswordInRealm(patient.getTenantRealm(), patient.getKeycloakUserId(), password);
+
+        // Consume only after Keycloak reset succeeds
+        otpService.consumeVerificationToken(verificationToken);
+
+        auditService.record(AuditEntityType.PATIENT, patient.getId().toString(), AuditAction.PASSWORD_RESET,
+                patient.getKeycloakUserId(), null);
+        log.info("Patient password reset: email={}", patient.getEmail());
+    }
+
+    private InternalPatientDto findOrProvision(String email) {
+        ResponseEntity<InternalPatientDto> response = patientClient.findByEmail(email);
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            InternalPatientDto patient = response.getBody();
+            if (patient.getKeycloakUserId() == null) {
+                // Patient was pre-created by admin/provider — Keycloak user not yet made. Create it now.
+                return linkKeycloakToExistingPatient(patient);
+            }
+            return patient;
+        }
+        return autoProvisionPatient(email);
+    }
+
+    private InternalPatientDto linkKeycloakToExistingPatient(InternalPatientDto patient) {
+        String tenantRealm = patient.getTenantRealm();
+        if (tenantRealm == null || tenantRealm.isBlank()) {
+            tenantRealm = TenantContext.getTenantId();
+        }
+        if (tenantRealm == null || tenantRealm.isBlank()) {
+            throw new IllegalStateException(
+                    "Cannot create Keycloak user — missing tenant realm for patient: " + patient.getEmail());
+        }
+
+        String firstName = deriveFirstName(patient.getEmail());
+        String keycloakUserId = keycloakService.createPendingUserInRealm(
+                tenantRealm, patient.getEmail(), patient.getEmail(), firstName, "");
+        keycloakService.assignRoleInRealm(tenantRealm, keycloakUserId, PATIENT_REALM_ROLE);
+
+        ResponseEntity<InternalPatientDto> linked = patientClient.linkKeycloak(
+                patient.getId(),
+                Map.of("keycloakUserId", keycloakUserId, "tenantRealm", tenantRealm));
+
+        if (!linked.getStatusCode().is2xxSuccessful() || linked.getBody() == null) {
+            throw new IllegalStateException("Failed to link Keycloak user to patient: " + patient.getId());
+        }
+        log.info("Created and linked Keycloak user for pre-existing patient: email={} keycloakId={} realm={}",
+                patient.getEmail(), keycloakUserId, tenantRealm);
+        return linked.getBody();
+    }
+
+    private InternalPatientDto autoProvisionPatient(String email) {
         String tenantRealm = TenantContext.getTenantId();
         if (tenantRealm == null || tenantRealm.isBlank()) {
             throw new IllegalStateException(
@@ -76,23 +138,26 @@ public class RegistrationService {
         }
 
         String firstName = deriveFirstName(email);
-
         String keycloakUserId = keycloakService.createPendingUserInRealm(
                 tenantRealm, email, email, firstName, "");
         keycloakService.assignRoleInRealm(tenantRealm, keycloakUserId, PATIENT_REALM_ROLE);
 
-        Patient patient = Patient.builder()
-                .firstName(firstName)
-                .lastName("")
-                .email(email)
-                .keycloakUserId(keycloakUserId)
-                .tenantRealm(tenantRealm)
-                .status(PatientStatus.PENDING_REGISTRATION)
-                .build();
-        patient = patientRepository.save(patient);
+        InternalPatientDto patient = patientClient.provision(
+                ProvisionPatientRequest.builder()
+                        .email(email)
+                        .firstName(firstName)
+                        .lastName("")
+                        .keycloakUserId(keycloakUserId)
+                        .tenantRealm(tenantRealm)
+                        .build()).getBody();
 
-        auditService.record("PATIENT", patient.getId().toString(), "SELF_SIGNUP",
-                keycloakUserId, "Auto-provisioned during /register/complete");
+        if (patient == null) {
+            throw new IllegalStateException("Patient provisioning returned no data for email: " + email);
+        }
+
+        auditService.record(AuditEntityType.PATIENT, patient.getId().toString(),
+                AuditAction.SELF_SIGNUP, keycloakUserId,
+                "Auto-provisioned during /register/complete");
         log.info("Auto-provisioned patient from self-signup: email={} keycloakId={} realm={}",
                 email, keycloakUserId, tenantRealm);
         return patient;
@@ -102,26 +167,5 @@ public class RegistrationService {
         String local = email.split("@", 2)[0];
         if (local.isBlank()) return "Patient";
         return Character.toUpperCase(local.charAt(0)) + local.substring(1);
-    }
-
-    /**
-     * Forgot-password flow: consumes a FORGOT_PASSWORD OTP token and resets the
-     * Keycloak user's password. Does NOT change the patient's ACTIVE status and
-     * does NOT auto-provision — you cannot reset a password for an account that
-     * was never created.
-     */
-    @Transactional
-    public void resetPassword(UUID verificationToken, String password) {
-        String identifier = otpService.consumeVerificationToken(verificationToken, OtpPurpose.FORGOT_PASSWORD);
-        Patient patient = patientRepository.findByEmailAndDeletedAtIsNull(identifier)
-                .orElseThrow(() -> new EntityNotFoundException("No patient found for identifier: " + identifier));
-
-        if (patient.getKeycloakUserId() == null || patient.getTenantRealm() == null) {
-            throw new IllegalStateException("Patient has no Keycloak user — cannot reset password.");
-        }
-        keycloakService.resetPasswordInRealm(patient.getTenantRealm(), patient.getKeycloakUserId(), password);
-        auditService.record("PATIENT", patient.getId().toString(), "PASSWORD_RESET",
-                patient.getKeycloakUserId(), null);
-        log.info("Patient password reset: email={}", patient.getEmail());
     }
 }

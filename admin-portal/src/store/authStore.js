@@ -1,29 +1,43 @@
 import { create } from 'zustand';
-import authService from '../services/authService';
+import keycloak from '../keycloak';
+
+const decodeUser = () => {
+  if (!keycloak.tokenParsed) return null;
+  const p = keycloak.tokenParsed;
+  return {
+    username: p.preferred_username,
+    email: p.email,
+    roles: p.realm_access?.roles || [],
+    sub: p.sub,
+  };
+};
 
 const useAuthStore = create((set) => ({
-  user: authService.getUser(),
+  user: null,
+  initialized: false,
   loading: false,
   error: null,
 
-  login: async (username, password) => {
-    set({ loading: true, error: null });
+  init: async () => {
     try {
-      await authService.login(username, password);
-      set({ user: authService.getUser(), loading: false });
-    } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Authentication failed';
-      set({ error: msg, loading: false });
-      throw err;
+      const authenticated = await keycloak.init({
+        onLoad: 'check-sso',
+        silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
+        pkceMethod: 'S256',
+      });
+      keycloak.onAuthRefreshSuccess = () => set({ user: decodeUser() });
+      keycloak.onAuthLogout = () => set({ user: null });
+      set({ user: authenticated ? decodeUser() : null, initialized: true });
+    } catch {
+      set({ initialized: true, error: 'Failed to initialize authentication' });
     }
   },
 
-  logout: async () => {
-    await authService.logout();
-    set({ user: null });
-  },
+  login: () => keycloak.login({ redirectUri: `${window.location.origin}/` }),
 
-  isAuthenticated: () => authService.isAuthenticated(),
+  logout: () => keycloak.logout({ redirectUri: `${window.location.origin}/login` }),
+
+  isAuthenticated: () => !!keycloak.authenticated,
   clearError: () => set({ error: null }),
 }));
 

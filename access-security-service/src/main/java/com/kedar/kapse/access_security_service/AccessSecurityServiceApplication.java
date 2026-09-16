@@ -6,9 +6,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Access Security Service — Authentication, Tenant, User, Staff, Facility management.
@@ -17,7 +19,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * with custom public endpoints (login, refresh, logout).
  */
 @SpringBootApplication
-@EnableConfigurationProperties(PortalConfig.class)
+@EnableScheduling
+@EnableFeignClients(basePackages = "com.kedar.kapse.access_security_service.client")
+@EnableConfigurationProperties({PortalConfig.class})
 @ComponentScan(
         basePackages = "com.kedar.kapse",
         excludeFilters = @ComponentScan.Filter(
@@ -25,8 +29,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
                 classes = SharedSecurityConfig.class
         )
 )
-@EntityScan(basePackages = "com.kedar.kapse.platform_core.entity")
-@EnableJpaRepositories(basePackages = "com.kedar.kapse.platform_core.repository")
+@EntityScan(basePackages = "com.kedar.kapse.access_security_service.entity")
+@EnableJpaRepositories(basePackages = "com.kedar.kapse.access_security_service.repository")
 public class AccessSecurityServiceApplication {
 
 	public static void main(String[] args) {

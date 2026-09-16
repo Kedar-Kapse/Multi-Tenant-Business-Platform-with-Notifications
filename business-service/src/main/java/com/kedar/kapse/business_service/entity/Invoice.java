@@ -1,9 +1,13 @@
 package com.kedar.kapse.business_service.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,6 +17,7 @@ import java.util.UUID;
 public class Invoice {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @Column(nullable = false, unique = true, length = 20) private String invoiceNumber;
+    // NOTE: patientId stays as String (design choice: aggregate root pattern, not JPA FK)
     @Column(nullable = false, length = 100) private String patientId;
     @Column(nullable = false, length = 150) private String patientName;
     @Column(length = 150) private String providerName;

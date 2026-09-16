@@ -1,15 +1,17 @@
 package com.kedar.kapse.business_service.controller;
 
-import com.kedar.kapse.business_service.repository.*;
-import com.kedar.kapse.platform_core.enums.BedStatus;
-import com.kedar.kapse.platform_core.enums.MedicineStatus;
-import com.kedar.kapse.platform_core.repository.BedRepository;
-import com.kedar.kapse.platform_core.repository.PharmacyStockRepository;
+import com.kedar.kapse.business_service.repository.AppointmentRepository;
+import com.kedar.kapse.business_service.repository.ClaimRepository;
+import com.kedar.kapse.business_service.repository.InvoiceRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -18,21 +20,12 @@ import java.util.stream.Collectors;
 public class DashboardController {
 
     private final ClaimRepository claimRepo;
-    private final BedRepository bedRepo;
-    private final PharmacyStockRepository pharmacyRepo;
     private final AppointmentRepository apptRepo;
     private final InvoiceRepository invoiceRepo;
 
     @GetMapping("/kpis")
     public Map<String, Object> getKpis() {
-        long totalClaims = claimRepo.count();
-        long paidClaims = claimRepo.countByStatus("PAID");
-        long totalBeds = bedRepo.count();
-        long occupiedBeds = bedRepo.findAll().stream().filter(b -> b.getStatus() == BedStatus.OCCUPIED).count();
         long totalAppts = apptRepo.count();
-        long scheduledAppts = apptRepo.findAll().stream().filter(a -> "SCHEDULED".equals(a.getStatus())).count();
-
-        double occupancyRate = totalBeds > 0 ? Math.round((double) occupiedBeds / totalBeds * 1000.0) / 10.0 : 0;
         double paidRevenue = claimRepo.findAll().stream()
                 .filter(c -> "PAID".equals(c.getStatus()) && c.getPaidAmount() != null)
                 .mapToDouble(c -> c.getPaidAmount().doubleValue()).sum();
@@ -40,14 +33,13 @@ public class DashboardController {
         return Map.of(
                 "patientVolume", totalAppts, "patientChange", 8.5,
                 "revenueMtd", paidRevenue, "revenueChange", 12.3,
-                "bedOccupancy", occupancyRate, "bedChange", -1.5,
+                "bedOccupancy", 0.0, "bedChange", 0.0,
                 "noShowRate", 3.2, "noShowChange", -0.5
         );
     }
 
     @GetMapping("/revenue-trend")
     public List<Map<String, Object>> getRevenueTrend() {
-        // Compute from real claims data grouped by month
         var claims = claimRepo.findAll();
         Map<String, double[]> monthly = new LinkedHashMap<>();
         String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
@@ -71,59 +63,33 @@ public class DashboardController {
     @GetMapping("/claims-distribution")
     public List<Map<String, Object>> getClaimsDistribution() {
         var claims = claimRepo.findAll();
-        Map<String, Long> counts = claims.stream().collect(Collectors.groupingBy(c -> c.getStatus() != null ? c.getStatus() : "UNKNOWN", Collectors.counting()));
+        Map<String, Long> counts = claims.stream().collect(Collectors.groupingBy(
+                c -> c.getStatus() != null ? c.getStatus() : "UNKNOWN", Collectors.counting()));
 
-        Map<String, String> colors = Map.of("PAID", "#16a34a", "SUBMITTED", "#3b82f6", "IN_REVIEW", "#f59e0b", "DENIED", "#e11d48", "APPROVED", "#0d9488", "APPEALED", "#a855f7");
+        Map<String, String> colors = Map.of(
+                "PAID", "#16a34a", "SUBMITTED", "#3b82f6", "IN_REVIEW", "#f59e0b",
+                "DENIED", "#e11d48", "APPROVED", "#0d9488", "APPEALED", "#a855f7");
         return counts.entrySet().stream()
-                .map(e -> Map.of("name", (Object) e.getKey().replace("_", " "), "value", (Object) e.getValue(), "color", (Object) colors.getOrDefault(e.getKey(), "#94a3b8")))
+                .map(e -> Map.of("name", (Object) e.getKey().replace("_", " "), "value", (Object) e.getValue(),
+                        "color", (Object) colors.getOrDefault(e.getKey(), "#94a3b8")))
                 .collect(Collectors.toList());
     }
 
     @GetMapping("/bed-occupancy")
     public List<Map<String, Object>> getBedOccupancy() {
-        var beds = bedRepo.findAll();
-        Map<String, int[]> wards = new LinkedHashMap<>();
-        for (var bed : beds) {
-            String ward = bed.getWardName() != null ? bed.getWardName() : "Other";
-            wards.computeIfAbsent(ward, k -> new int[]{0, 0});
-            int[] vals = wards.get(ward);
-            vals[1]++; // total
-            if (bed.getStatus() == BedStatus.OCCUPIED) vals[0]++; // occupied
-        }
-        return wards.entrySet().stream()
-                .map(e -> Map.of("unit", (Object) e.getKey(), "occupied", (Object) e.getValue()[0], "total", (Object) e.getValue()[1]))
-                .collect(Collectors.toList());
+        return List.of();
     }
 
     @GetMapping("/alerts")
     public List<Map<String, Object>> getAlerts() {
         List<Map<String, Object>> alerts = new ArrayList<>();
-        // Low stock pharmacy alerts
-        var stocks = pharmacyRepo.findAll();
-        for (var s : stocks) {
-            if (s.getStatus() == MedicineStatus.LOW_STOCK) {
-                alerts.add(Map.of("id", alerts.size() + 1, "msg", "Pharmacy stock low: " + s.getMedicineName() + " (" + s.getQuantity() + " units)", "severity", "warning", "time", "Recent"));
-            }
-            if (s.getStatus() == MedicineStatus.OUT_OF_STOCK) {
-                alerts.add(Map.of("id", alerts.size() + 1, "msg", "OUT OF STOCK: " + s.getMedicineName(), "severity", "danger", "time", "Recent"));
-            }
-            if (s.getStatus() == MedicineStatus.EXPIRED) {
-                alerts.add(Map.of("id", alerts.size() + 1, "msg", "EXPIRED: " + s.getMedicineName() + " (batch " + s.getBatchNumber() + ")", "severity", "danger", "time", "Recent"));
-            }
-        }
-        // Overdue invoices
         var invoices = invoiceRepo.findAll();
         for (var inv : invoices) {
             if ("OVERDUE".equals(inv.getStatus())) {
-                alerts.add(Map.of("id", alerts.size() + 1, "msg", "Invoice " + inv.getInvoiceNumber() + " overdue — ₹" + inv.getAmount(), "severity", "warning", "time", "Recent"));
+                alerts.add(Map.of("id", alerts.size() + 1, "msg",
+                        "Invoice " + inv.getInvoiceNumber() + " overdue — ₹" + inv.getAmount(),
+                        "severity", "warning", "time", "Recent"));
             }
-        }
-        // Bed occupancy warnings
-        var beds = bedRepo.findAll();
-        long occupied = beds.stream().filter(b -> b.getStatus() == BedStatus.OCCUPIED).count();
-        long total = beds.size();
-        if (total > 0 && (double) occupied / total > 0.75) {
-            alerts.add(Map.of("id", alerts.size() + 1, "msg", "Bed occupancy at " + Math.round((double) occupied / total * 100) + "% — above 75% threshold", "severity", "info", "time", "Recent"));
         }
         return alerts;
     }

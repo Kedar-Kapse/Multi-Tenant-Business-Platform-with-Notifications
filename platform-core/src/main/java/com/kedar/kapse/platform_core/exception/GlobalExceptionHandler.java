@@ -94,6 +94,16 @@ public class GlobalExceptionHandler {
                 .body(buildBody(HttpStatus.CONFLICT, "Data Conflict", message));
     }
 
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
+        String msg = ex.getMessage();
+        log.error("Runtime error: {} — {}", ex.getClass().getSimpleName(), msg, ex);
+        String safeMsg = (msg != null && msg.length() <= 300) ? msg
+                : "An internal error occurred. Please try again.";
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(buildBody(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", safeMsg));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         log.error("Unexpected error: {} — {}", ex.getClass().getSimpleName(), ex.getMessage(), ex);

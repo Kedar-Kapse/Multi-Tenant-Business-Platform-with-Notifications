@@ -1,11 +1,12 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.access_security_service.entity.Tenant;
+import com.kedar.kapse.access_security_service.entity.User;
+import com.kedar.kapse.access_security_service.mapper.ResponseMapper;
+import com.kedar.kapse.access_security_service.repository.TenantRepository;
+import com.kedar.kapse.access_security_service.repository.UserRepository;
 import com.kedar.kapse.platform_core.dto.CreateUserRequest;
 import com.kedar.kapse.platform_core.dto.UserResponse;
-import com.kedar.kapse.platform_core.entity.Tenant;
-import com.kedar.kapse.platform_core.entity.User;
-import com.kedar.kapse.platform_core.repository.TenantRepository;
-import com.kedar.kapse.platform_core.repository.UserRepository;
 import com.kedar.kapse.platform_core.enums.UserStatus;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -39,19 +40,19 @@ public class UserService {
                 .build();
 
         user = userRepository.save(user);
-        return UserResponse.fromEntity(user);
+        return ResponseMapper.toUserResponse(user);
     }
 
     public List<UserResponse> listUsersByTenant(UUID tenantId) {
         return userRepository.findByTenantId(tenantId).stream()
-                .map(UserResponse::fromEntity)
+                .map(ResponseMapper::toUserResponse)
                 .collect(Collectors.toList());
     }
 
     public UserResponse getUserDetails(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
-        return UserResponse.fromEntity(user);
+        return ResponseMapper.toUserResponse(user);
     }
 
     public void disableUser(UUID userId) {

@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiEye, FiEyeOff, FiShield, FiUsers, FiFileText, FiHome } from 'react-icons/fi';
+import { FiShield, FiUsers, FiFileText, FiHome } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
 import api, { ACCESS_SECURITY } from '../../services/api';
 
 const STATS_BASE = `${ACCESS_SECURITY}/api/admin/v1/dashboard`;
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+
+  // Go straight to the secure sign-in page — no extra click needed.
+  useEffect(() => {
+    login();
+  }, [login]);
 
   // ── Live stats from backend ──
   const [stats, setStats] = useState({ tenants: null, staff: null, patients: null });
@@ -33,20 +31,6 @@ export default function LoginPage() {
     };
     fetchStats();
   }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await login(email, password);
-      navigate('/');
-    } catch (err) {
-      setError(err?.response?.data?.message || 'Invalid credentials. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatCount = (value) => {
     if (value === null) return '--';
@@ -85,13 +69,13 @@ export default function LoginPage() {
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                 <FiShield size={14} />
               </div>
-              <span className="text-base font-bold tracking-tight">Invision</span>
+              <span className="text-base font-bold tracking-tight">KayCare</span>
             </div>
 
             {/* Text with left accent border */}
             <div className="border-l-[3px] border-white/40 pl-4">
               <h2 className="text-lg font-bold leading-snug">
-                Welcome to <span className="text-xl">Invision</span>
+                Welcome to <span className="text-xl">KayCare</span>
                 <br />
                 Hospital Management System
               </h2>
@@ -131,82 +115,22 @@ export default function LoginPage() {
               <div className="w-9 h-9 rounded-full bg-primary-600 flex items-center justify-center text-white">
                 <FiShield size={16} />
               </div>
-              <span className="text-xl font-bold text-primary-600 tracking-tight">Invision</span>
+              <span className="text-xl font-bold text-primary-600 tracking-tight">KayCare</span>
             </div>
 
             {/* Heading */}
             <h1 className="text-2xl font-bold text-secondary-900">Login</h1>
-            <p className="text-sm text-secondary-500 mt-1 mb-7">Enter your credentials to login to your account</p>
-
-            {/* Error message */}
-            {error && (
-              <div className="mb-4 p-3 rounded-lg bg-urgent-50 border border-urgent-200 text-urgent-700 text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-secondary-800 mb-1.5">Email</label>
-                <div className="relative">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary-500 rounded-l-lg" />
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-4 pr-4 py-3 rounded-lg border border-secondary-200 bg-white text-sm text-secondary-900 placeholder-secondary-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition"
-                    placeholder="example.nazarbecks@gmail.com"
-                    required
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-secondary-800 mb-1.5">Password</label>
-                <div className="relative">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary-500 rounded-l-lg" />
-                  <input
-                    type={showPw ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3 rounded-lg border border-secondary-200 bg-white text-sm text-secondary-900 placeholder-secondary-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition"
-                    placeholder="Enter your password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600 transition"
-                  >
-                    {showPw ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                  </button>
-                </div>
-                <div className="flex justify-end mt-1.5">
-                  <button type="button" className="text-xs font-medium text-primary-600 hover:text-primary-700 transition">
-                    Forgot Password?
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md shadow-primary-600/25"
-              >
-                {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? 'Signing in…' : 'Sign In'}
-              </button>
-            </form>
-
-            {/* Sign up link */}
-            <p className="text-center text-sm text-secondary-500 mt-6">
-              Don't have an account?{' '}
-              <button type="button" className="font-semibold text-primary-600 hover:text-primary-700 transition">
-                Sign Up
-              </button>
+            <p className="text-sm text-secondary-500 mt-1 mb-7">
+              You'll be redirected to our secure sign-in page to enter your credentials.
             </p>
+
+            <button
+              type="button"
+              onClick={login}
+              className="w-full py-3 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-md shadow-primary-600/25"
+            >
+              Sign In
+            </button>
           </div>
         </div>
       </div>

@@ -20,14 +20,14 @@ public final class SecurityConstants {
     private SecurityConstants() {}
 
     // ======================== ROLE NAMES ========================
-    // Match Keycloak realm roles exactly
+    // Derived from KeycloakRole enum — do not hardcode here
 
-    public static final String ROLE_ADMIN = "ADMIN";
-    public static final String ROLE_PROVIDER = "PROVIDER";
-    public static final String ROLE_THERAPIST = "THERAPIST";
-    public static final String ROLE_PHYSICIAN = "PHYSICIAN";
-    public static final String ROLE_NURSE = "NURSE";
-    public static final String ROLE_PATIENT = "PATIENT";
+    public static final String ROLE_ADMIN     = com.kedar.kapse.platform_core.enums.KeycloakRole.ADMIN.name();
+    public static final String ROLE_PROVIDER  = com.kedar.kapse.platform_core.enums.KeycloakRole.PROVIDER.name();
+    public static final String ROLE_THERAPIST = com.kedar.kapse.platform_core.enums.KeycloakRole.THERAPIST.name();
+    public static final String ROLE_PHYSICIAN = com.kedar.kapse.platform_core.enums.KeycloakRole.PHYSICIAN.name();
+    public static final String ROLE_NURSE     = com.kedar.kapse.platform_core.enums.KeycloakRole.NURSE.name();
+    public static final String ROLE_PATIENT   = com.kedar.kapse.platform_core.enums.KeycloakRole.PATIENT.name();
 
     // ======================== PERMISSION NAMES ========================
     // Match Keycloak client roles under "platform-backend" client

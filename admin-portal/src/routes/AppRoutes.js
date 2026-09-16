@@ -16,6 +16,7 @@ import MfaPage from '../pages/security/mfa/MfaPage';
 import SessionsPage from '../pages/security/sessions/SessionsPage';
 import NotificationsPage from '../pages/notifications/NotificationsPage';
 import SettingsPage from '../pages/settings/SettingsPage';
+import MessagesPage from '../pages/messages/MessagesPage';
 
 export default function AppRoutes() {
   return (
@@ -45,6 +46,7 @@ export default function AppRoutes() {
         <Route path="mfa" element={<MfaPage />} />
         <Route path="sessions" element={<SessionsPage />} />
         {/* System */}
+        <Route path="messages" element={<MessagesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

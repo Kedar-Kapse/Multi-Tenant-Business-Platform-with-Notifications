@@ -1,6 +1,5 @@
 package com.kedar.kapse.platform_core.dto;
 
-import com.kedar.kapse.platform_core.entity.Bed;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -30,23 +29,4 @@ public class BedResponse {
     private LocalDateTime updatedAt;
     private String bedLabel;
 
-    public static BedResponse fromEntity(Bed bed) {
-        if (bed == null) return null;
-        return BedResponse.builder()
-                .id(bed.getId())
-                .facilityId(bed.getFacility() != null ? bed.getFacility().getId() : null)
-                .facilityName(bed.getFacility() != null ? bed.getFacility().getName() : null)
-                .wardName(bed.getWardName())
-                .roomNumber(bed.getRoomNumber())
-                .bedNumber(bed.getBedNumber())
-                .bedType(bed.getBedType() != null ? bed.getBedType().name() : null)
-                .status(bed.getStatus() != null ? bed.getStatus().name() : null)
-                .assignedPatientId(bed.getAssignedPatientId())
-                .assignedPatientName(bed.getAssignedPatientName())
-                .notes(bed.getNotes())
-                .bedLabel(bed.getWardName() + "-" + bed.getRoomNumber() + "-" + bed.getBedNumber())
-                .createdAt(bed.getCreatedAt())
-                .updatedAt(bed.getUpdatedAt())
-                .build();
-    }
 }
