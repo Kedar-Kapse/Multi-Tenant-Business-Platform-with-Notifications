@@ -8,6 +8,11 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Declares the Kafka topics this service produces to.
  * KafkaAdmin and @EnableKafka are provided by SharedKafkaAdminConfig in platform-core.
+ *
+ * NOTE: patient.created moved to business-service's KafkaTopicConfig — that's the
+ * service that actually produces it (PatientServiceImpl.createPatient). A topic's
+ * NewTopic bean should live in the service that produces to it, not an uninvolved
+ * one, so ownership is easy to find.
  */
 @Configuration
 public class KafkaTopicConfig {
@@ -15,10 +20,5 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic otpRequestedTopic() {
         return new NewTopic(EventTopics.OTP_REQUESTED, 3, (short) 1);
-    }
-
-    @Bean
-    public NewTopic patientCreatedTopic() {
-        return new NewTopic(EventTopics.PATIENT_CREATED, 3, (short) 1);
     }
 }

@@ -23,6 +23,10 @@ import org.springframework.util.backoff.ExponentialBackOff;
  * Non-retryable fast-path:
  *   PccNonRetryableException (4xx client errors) and CallNotPermittedException (circuit open)
  *   skip all retries and go directly to DLQ on the first failure.
+ *
+ * patient.created lives HERE (not access-security-service) because this service is
+ * the one that actually produces it (see createPatient() in PatientServiceImpl) — a
+ * topic's NewTopic bean should live with its producer.
  */
 @Configuration
 public class KafkaTopicConfig {
@@ -35,6 +39,11 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic pccSyncRequestedDlqTopic() {
         return new NewTopic(EventTopics.PCC_SYNC_REQUESTED_DLQ, 1, (short) 1);
+    }
+
+    @Bean
+    public NewTopic patientCreatedTopic() {
+        return new NewTopic(EventTopics.PATIENT_CREATED, 3, (short) 1);
     }
 
     /**

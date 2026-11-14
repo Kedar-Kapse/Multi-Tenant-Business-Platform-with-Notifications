@@ -40,11 +40,14 @@ spring:
         spring.json.add.type.headers: false
         # Fail fast when the broker is unreachable so OTP/patient flows aren't blocked.
         # Publish is async with a fallback in NotificationEventPublisher.
+        # acks=all (not "1"): if a send DOES reach the broker within the short
+        # timeout below, we still want the strongest durability guarantee — the
+        # fail-fast behavior comes from the timeouts, not from a weaker acks level.
         max.block.ms: 500
         request.timeout.ms: 1000
         delivery.timeout.ms: 2000
         retries: 0
-        acks: "1"
+        acks: "all"
 
 otp:
   length: 6
