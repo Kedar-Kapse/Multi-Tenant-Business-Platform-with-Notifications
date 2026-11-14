@@ -7,12 +7,14 @@ on:
       - 'business-service/**'
       - 'platform-core/**'
       - 'pom.xml'
+      - '.github/workflows/business-service-ci.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'business-service/**'
       - 'platform-core/**'
       - 'pom.xml'
+      - '.github/workflows/business-service-ci.yml'
 
 permissions:
   contents: read
@@ -21,6 +23,22 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # contextLoads() starts the full app, which needs a real database.
+    # Matches the defaults in application.yml (localhost:5432/platform_db).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: platform_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

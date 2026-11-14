@@ -6,11 +6,13 @@ on:
     paths:
       - 'platform-core/**'
       - 'pom.xml'
+      - '.github/workflows/platform-core-ci.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'platform-core/**'
       - 'pom.xml'
+      - '.github/workflows/platform-core-ci.yml'
 
 permissions:
   contents: read
@@ -40,3 +42,5 @@ jobs:
           name: platform-core Tests
           path: 'platform-core/target/surefire-reports/*.xml'
           reporter: java-junit
+          # platform-core has no tests yet, so there are no report files.
+          fail-on-empty: false
