@@ -37,6 +37,11 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+        <!-- Backs EventIdempotencyService — prevents duplicate emails on Kafka redelivery. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <!-- Needed at classpath for platform-core's IamRestApiProvider component scan. -->
         <dependency>
             <groupId>org.keycloak</groupId>

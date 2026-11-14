@@ -3,6 +3,7 @@ package com.kedar.kapse.notification_service.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kedar.kapse.notification_service.service.CallService;
 import com.kedar.kapse.notification_service.service.EmailService;
+import com.kedar.kapse.notification_service.service.EventIdempotencyService;
 import com.kedar.kapse.platform_core.event.BaseEvent;
 import com.kedar.kapse.platform_core.event.EventTopics;
 import com.kedar.kapse.platform_core.event.OtpRequestedPayload;
@@ -19,30 +20,34 @@ public class OtpNotificationListener {
     private final EmailService emailService;
     private final CallService callService;
     private final ObjectMapper objectMapper;
+    private final EventIdempotencyService idempotencyService;
 
-    @KafkaListener(topics = EventTopics.OTP_REQUESTED, groupId = "notification-group")
+    // Own consumer group (not shared with PatientNotificationListener) so a
+    // rebalance/restart on one doesn't couple with or blend monitoring with the other.
+    @KafkaListener(topics = EventTopics.OTP_REQUESTED, groupId = "notification-otp-group")
     public void onOtpRequested(BaseEvent<?> event) {
         OtpRequestedPayload p = objectMapper.convertValue(event.getPayload(), OtpRequestedPayload.class);
         if (p == null || p.getIdentifier() == null || p.getOtpCode() == null) {
             log.warn("Dropping OTP_REQUESTED event with missing payload: eventId={}", event.getEventId());
             return;
         }
+        if (idempotencyService.isAlreadyProcessed(event.getEventId())) {
+            log.info("Skipping duplicate OTP_REQUESTED eventId={} (already processed)", event.getEventId());
+            return;
+        }
         log.info("Received OTP_REQUESTED eventId={} channel={} purpose={}",
                 event.getEventId(), p.getChannel(), p.getPurpose());
 
         int ttl = p.getTtlSeconds() != null ? p.getTtlSeconds() : 60;
-        try {
-            if ("CALL".equalsIgnoreCase(p.getChannel())) {
-                // Voice-call OTP stays mocked until an IVR provider (Twilio/Exotel) is wired up.
-                callService.placeOtpCall(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl, p.getTenantRealm());
-            } else {
-                emailService.sendOtp(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl);
-            }
-        } catch (EmailService.MailDeliveryException e) {
-            // Swallow and move on. Re-delivering won't help (likely invalid address) and
-            // the OTP is time-boxed. In production this is where we'd hand off to a DLT.
-            log.warn("Dropping OTP_REQUESTED event after mail failure: identifier={} cause={}",
-                    p.getIdentifier(), e.getMessage());
+        // No try/catch here on purpose: a failure now propagates to the container-level
+        // DefaultErrorHandler (NotificationKafkaConfig), which retries with a short
+        // backoff, then routes to otp.requested.dlq instead of silently dropping it.
+        if ("CALL".equalsIgnoreCase(p.getChannel())) {
+            // Voice-call OTP stays mocked until an IVR provider (Twilio/Exotel) is wired up.
+            callService.placeOtpCall(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl, p.getTenantRealm());
+        } else {
+            emailService.sendOtp(p.getIdentifier(), p.getOtpCode(), p.getPurpose(), ttl);
         }
+        idempotencyService.markProcessed(event.getEventId());
     }
 }

@@ -3,6 +3,7 @@ package com.kedar.kapse.notification_service.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kedar.kapse.notification_service.service.CallService;
 import com.kedar.kapse.notification_service.service.EmailService;
+import com.kedar.kapse.notification_service.service.EventIdempotencyService;
 import com.kedar.kapse.platform_core.event.BaseEvent;
 import com.kedar.kapse.platform_core.event.OtpRequestedPayload;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Exercises the Kafka listener's routing logic: EMAIL channel → EmailService,
@@ -22,9 +24,10 @@ class OtpNotificationListenerTest {
 
     @Mock private EmailService emailService;
     @Mock private CallService callService;
+    @Mock private EventIdempotencyService idempotencyService;
 
     private OtpNotificationListener listener() {
-        return new OtpNotificationListener(emailService, callService, new ObjectMapper());
+        return new OtpNotificationListener(emailService, callService, new ObjectMapper(), idempotencyService);
     }
 
     private BaseEvent<OtpRequestedPayload> event(String channel, String identifier, String code) {
@@ -41,6 +44,7 @@ class OtpNotificationListenerTest {
     void routesEmailChannelToEmailService() {
         listener().onOtpRequested(event("EMAIL", "user@example.com", "123456"));
         verify(emailService).sendOtp("user@example.com", "123456", "REGISTRATION", 60);
+        verify(idempotencyService).markProcessed("evt-1");
         verify(callService, never()).placeOtpCall(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
@@ -58,6 +62,18 @@ class OtpNotificationListenerTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void skipsDuplicateEvent() {
+        when(idempotencyService.isAlreadyProcessed("evt-1")).thenReturn(true);
+        listener().onOtpRequested(event("EMAIL", "user@example.com", "123456"));
+        verify(emailService, never()).sendOtp(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt());
+        verify(idempotencyService, never()).markProcessed("evt-1");
     }
 
     @Test

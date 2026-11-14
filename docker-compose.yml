@@ -180,8 +180,11 @@ services:
       - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-false}
       - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${MAIL_SMTP_STARTTLS:-false}
       - MAIL_FROM=${MAIL_FROM:-no-reply@invision.local}
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
     depends_on:
       - service-registry
+      - redis
       - kafka
       - keycloak
       - maildev

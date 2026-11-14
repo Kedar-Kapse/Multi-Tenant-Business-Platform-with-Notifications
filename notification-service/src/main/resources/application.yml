@@ -10,6 +10,8 @@ spring:
     listener:
       auto-startup: ${KAFKA_LISTENER_ENABLED:true}
     consumer:
+      # Per-listener groupId (notification-otp-group / notification-patient-group,
+      # set directly on each @KafkaListener) takes precedence over this default.
       group-id: notification-group
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
@@ -18,9 +20,23 @@ spring:
         spring.json.trusted.packages: "*"
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.kedar.kapse.platform_core.event.BaseEvent
+    # Needed so the auto-configured KafkaTemplate (used by NotificationKafkaConfig's
+    # DeadLetterPublishingRecoverer to publish failed events to *.dlq topics) can
+    # actually serialize messages — previously notification-service was consumer-only
+    # and had no producer config at all.
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     properties:
       reconnect.backoff.ms: 5000
       reconnect.backoff.max.ms: 20000
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
   mail:
     host: ${SPRING_MAIL_HOST:localhost}
