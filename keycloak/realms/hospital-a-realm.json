@@ -1,6 +1,7 @@
 {
   "realm": "hospital-a",
   "enabled": true,
+  "loginTheme": "invision",
   "displayName": "Hospital A - City General",
   "sslRequired": "external",
   "registrationAllowed": false,

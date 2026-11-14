@@ -1,6 +1,7 @@
 {
   "realm": "hospital-b",
   "enabled": true,
+  "loginTheme": "invision",
   "displayName": "Hospital B - Metro Health",
   "sslRequired": "external",
   "registrationAllowed": false,
