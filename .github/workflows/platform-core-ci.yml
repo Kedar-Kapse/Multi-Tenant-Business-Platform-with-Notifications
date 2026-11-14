@@ -1,0 +1,42 @@
+name: platform-core CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'platform-core/**'
+      - 'pom.xml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'platform-core/**'
+      - 'pom.xml'
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and test platform-core
+        run: mvn -B clean test -pl platform-core -am
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: platform-core Tests
+          path: 'platform-core/target/surefire-reports/*.xml'
+          reporter: java-junit
