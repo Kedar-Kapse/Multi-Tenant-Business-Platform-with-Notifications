@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: business-service
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/platform_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -122,3 +126,11 @@ management:
       enabled: false
     circuitbreakers:
       enabled: true
+
+# Report files in S3. Credentials are NOT configured here: the AWS SDK reads
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from the environment.
+aws:
+  region: ${AWS_REGION:ap-southeast-2}
+  s3:
+    bucket: ${AWS_S3_BUCKET:kedar-patient-reports-2026}
+    presigned-url-minutes: 5

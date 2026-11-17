@@ -152,6 +152,10 @@ services:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - KEYCLOAK_BASE_URL=http://keycloak:8080
       - KEYCLOAK_EXTERNAL_URL=${KEYCLOAK_EXTERNAL_URL:-http://localhost:8080}
+    # Local dev only: S3 credentials from the host's ~/.aws (never baked into the
+    # image). On AWS the service gets an IAM role instead, so no keys at all.
+    volumes:
+      - ${HOME}/.aws:/root/.aws:ro
     depends_on:
       - service-registry
       - postgres
