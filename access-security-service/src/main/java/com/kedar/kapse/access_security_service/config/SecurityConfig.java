@@ -14,7 +14,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 
 /**
  * Access-Security-Service — Restore Production security configuration.
@@ -52,8 +52,9 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // Filter order: BasicAuthenticationFilter → TenantFilter → OAuth2 opaque token
-                .addFilterAfter(tenantFilter, BasicAuthenticationFilter.class)
+                // TenantFilter must run before the bearer-token check: token validation
+                // picks the Keycloak realm from the tenant it sets (else falls back to "master").
+                .addFilterBefore(tenantFilter, BearerTokenAuthenticationFilter.class)
 
                 .authorizeHttpRequests(authorize -> authorize
                         // Public endpoints

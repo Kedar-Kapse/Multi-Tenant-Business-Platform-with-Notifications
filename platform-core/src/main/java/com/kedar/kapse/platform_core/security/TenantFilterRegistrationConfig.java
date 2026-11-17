@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * TenantFilter must run exactly once per request, wired in explicitly by
  * each service's own SecurityFilterChain via
- * addFilterAfter(tenantFilter, BasicAuthenticationFilter.class), so that it
+ * addFilterBefore(tenantFilter, BearerTokenAuthenticationFilter.class), so that it
  * runs at a precise, named position relative to Spring Security's own
  * filters. Without this disable, TenantFilter would ALSO be auto-registered
  * as a separate standalone filter, causing it to run twice per request.

@@ -11,14 +11,14 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 
 /**
  * Default security configuration for all servlet-based microservices.
  *
  * MULTI-TENANT SECURITY FLOW:
- * 1. TenantFilter runs first (explicitly wired via addFilterAfter, right after
- *    BasicAuthenticationFilter) and extracts X-TENANT-ID header into TenantContext
+ * 1. TenantFilter runs first (explicitly wired via addFilterBefore, right before
+ *    BearerTokenAuthenticationFilter) and extracts X-TENANT-ID header into TenantContext
  * 2. Spring Security intercepts the request
  * 3. MultiTenantJwtDecoder reads TenantContext to determine the Keycloak realm
  * 4. Fetches JWKS from the tenant's realm to validate the JWT signature
@@ -44,7 +44,7 @@ public class SharedSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterAfter(tenantFilter, BasicAuthenticationFilter.class)
+                .addFilterBefore(tenantFilter, BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SecurityConstants.PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated()

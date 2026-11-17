@@ -15,7 +15,7 @@ import java.io.IOException;
  * in the TenantContext for the duration of the request.
  *
  * Execution order: each service explicitly wires this into its own
- * SecurityFilterChain via addFilterAfter(tenantFilter, BasicAuthenticationFilter.class),
+ * SecurityFilterChain via addFilterBefore(tenantFilter, BearerTokenAuthenticationFilter.class),
  * so it runs before JWT validation (the tenant must be available to select the
  * correct realm). Spring Boot's automatic standalone-filter registration for this
  * @Component is disabled in TenantFilterRegistrationConfig — otherwise it would

@@ -9,6 +9,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -92,6 +93,15 @@ public class GlobalExceptionHandler {
         log.error("Data integrity violation: {}", detail);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(buildBody(HttpStatus.CONFLICT, "Data Conflict", message));
+    }
+
+    // Without this, the RuntimeException handler below turns e.g. a deliberate 403 into a 500.
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        log.warn("{}: {}", status, ex.getReason());
+        return ResponseEntity.status(status)
+                .body(buildBody(status, status.getReasonPhrase(), ex.getReason()));
     }
 
     @ExceptionHandler(RuntimeException.class)

@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 // NOTE: @EnableMethodSecurity must be declared HERE (not relied upon from
@@ -40,7 +41,9 @@ public class BusinessSecurityConfig {
             // InternalApiKeyFilter runs first — it blocks /internal/** without a valid key
             // before Spring Security even evaluates JWT auth for those paths.
             .addFilterBefore(internalApiKeyFilter, BasicAuthenticationFilter.class)
-            .addFilterAfter(tenantFilter, BasicAuthenticationFilter.class)
+            // Must run before the bearer-token check: token validation picks the
+            // Keycloak realm from the tenant this filter sets (else it falls back to "master").
+            .addFilterBefore(tenantFilter, BearerTokenAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // /internal/** is guarded by InternalApiKeyFilter, not by JWT.
