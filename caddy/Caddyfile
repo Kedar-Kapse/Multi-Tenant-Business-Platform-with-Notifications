@@ -1,23 +1,60 @@
 # Reverse proxy for the whole platform.
-# Caddy gets a free HTTPS certificate (Let's Encrypt) for every host below,
-# then forwards each request to the right container by hostname.
-# {$DOMAIN} comes from the DOMAIN env var (set in the server's .env), so the
-# same file works for any environment (QA, prod) without code changes.
+# Caddy gets free HTTPS certificates (Let's Encrypt) and forwards each request
+# to the right container by hostname. {$DOMAIN} comes from the server's .env,
+# so the same file works for every environment (QA, prod) without code changes.
+#
+# Multi-tenant addresses -- the first label is the tenant (= Keycloak realm):
+#   <tenant>.app.<domain>      -> provider portal   e.g. hospital-a.app.kapse.online
+#   <tenant>.admin.<domain>    -> admin portal
+#   <tenant>.patient.<domain>  -> patient portal
+# Shared by all tenants:
+#   api.<domain>   -> API gateway (tenant travels in the X-TENANT-ID header)
+#   auth.<domain>  -> Keycloak    (tenant = realm in the URL path)
 
-# Main domain -> provider portal
-{$DOMAIN}, www.{$DOMAIN} {
-	redir https://app.{$DOMAIN}{uri}
+{
+	# Tenant hosts get their certificate on the first visit ("on demand").
+	# Before issuing one, Caddy asks the check below, so certificates are only
+	# requested for tenants that really exist -- nobody can make us spam
+	# Let's Encrypt with random names.
+	on_demand_tls {
+		ask http://127.0.0.1:5555/check
+	}
 }
 
-app.{$DOMAIN} {
+# Internal check, not reachable from outside (port 5555 is not published).
+# Allowed when the first label is an existing Keycloak realm (but not "master").
+:5555 {
+	bind 127.0.0.1
+
+	@knownTenant {
+		vars_regexp host {query.domain} ^([a-z0-9-]+)\.(app|admin|patient)\.{$DOMAIN}$
+		not vars_regexp {query.domain} ^master\.
+	}
+	handle @knownTenant {
+		rewrite * /realms/{re.host.1}
+		reverse_proxy keycloak:8080
+	}
+	respond 404
+}
+
+*.app.{$DOMAIN} {
+	tls {
+		on_demand
+	}
 	reverse_proxy provider-portal:80
 }
 
-admin.{$DOMAIN} {
+*.admin.{$DOMAIN} {
+	tls {
+		on_demand
+	}
 	reverse_proxy admin-portal:80
 }
 
-patient.{$DOMAIN} {
+*.patient.{$DOMAIN} {
+	tls {
+		on_demand
+	}
 	reverse_proxy patient-portal:80
 }
 
@@ -32,4 +69,9 @@ auth.{$DOMAIN} {
 	respond @kcAdmin 404
 
 	reverse_proxy keycloak:8080
+}
+
+# Main domain: no tenant in the address, so just say where to go.
+{$DOMAIN}, www.{$DOMAIN} {
+	respond "KayCare: open your hospital's address, e.g. https://<hospital>.app.{$DOMAIN}" 200
 }
