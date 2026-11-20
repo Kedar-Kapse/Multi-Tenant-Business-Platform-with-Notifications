@@ -1,4 +1,5 @@
 import api, { NOTIFICATIONS } from './api';
+import { API_BASE_URL } from '../runtimeConfig';
 
 const notificationService = {
   /** Get paginated notifications */
@@ -38,7 +39,7 @@ const notificationService = {
 
   /** SSE stream URL for real-time notifications */
   getStreamUrl: () => {
-    const gateway = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8085';
+    const gateway = API_BASE_URL;
     return `${gateway}${NOTIFICATIONS}/api/notifications/stream`;
   },
 };

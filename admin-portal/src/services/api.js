@@ -1,9 +1,10 @@
 import axios from 'axios';
 import keycloak from '../keycloak';
+import { TENANT_ID, API_BASE_URL } from '../runtimeConfig';
 
-const GATEWAY = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8085';
+const GATEWAY = API_BASE_URL;
 
-const DEFAULT_TENANT = process.env.REACT_APP_TENANT_ID || 'test';
+const DEFAULT_TENANT = TENANT_ID;
 
 const api = axios.create({
   baseURL: GATEWAY,
