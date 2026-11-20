@@ -1,0 +1,35 @@
+# Reverse proxy for the whole platform.
+# Caddy gets a free HTTPS certificate (Let's Encrypt) for every host below,
+# then forwards each request to the right container by hostname.
+# {$DOMAIN} comes from the DOMAIN env var (set in the server's .env), so the
+# same file works for any environment (QA, prod) without code changes.
+
+# Main domain -> provider portal
+{$DOMAIN}, www.{$DOMAIN} {
+	redir https://app.{$DOMAIN}{uri}
+}
+
+app.{$DOMAIN} {
+	reverse_proxy provider-portal:80
+}
+
+admin.{$DOMAIN} {
+	reverse_proxy admin-portal:80
+}
+
+patient.{$DOMAIN} {
+	reverse_proxy patient-portal:80
+}
+
+api.{$DOMAIN} {
+	reverse_proxy api-gateway:8085
+}
+
+auth.{$DOMAIN} {
+	# The Keycloak admin console is NOT exposed to the internet.
+	# Reach it through an SSH tunnel to port 8080 instead.
+	@kcAdmin path /admin /admin/*
+	respond @kcAdmin 404
+
+	reverse_proxy keycloak:8080
+}

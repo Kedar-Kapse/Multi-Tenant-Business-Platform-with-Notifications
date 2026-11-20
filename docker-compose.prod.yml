@@ -1,0 +1,40 @@
+# Production overrides, layered on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Adds Caddy (HTTPS + routing by hostname) as the only public entry point.
+# Needs DOMAIN in the server's .env, e.g. DOMAIN=kapse.online
+
+services:
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - DOMAIN=${DOMAIN:?Set DOMAIN in .env, e.g. DOMAIN=kapse.online}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data        # certificates live here; keep it so restarts don't re-request them
+      - caddy-config:/config
+    depends_on:
+      - keycloak
+      - api-gateway
+      - admin-portal
+      - provider-portal
+      - patient-portal
+    networks:
+      - platform-network
+
+  keycloak:
+    environment:
+      # Keycloak sits behind Caddy: trust its X-Forwarded-* headers so
+      # login pages and tokens use https://auth.<domain>.
+      - KC_PROXY=edge
+
+volumes:
+  caddy-data:
+  caddy-config:
