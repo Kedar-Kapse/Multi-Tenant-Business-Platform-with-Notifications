@@ -23,6 +23,10 @@
 
 # Internal check, not reachable from outside (port 5555 is not published).
 # Allowed when the first label is an existing Keycloak realm (but not "master").
+# Caddy runs this check on every new connection, even for a certificate it already
+# has. So while Keycloak is down (e.g. still starting after a reboot), a tenant
+# that already has a certificate is still allowed -- otherwise every portal
+# would show an SSL error until Keycloak is up. New tenants wait for Keycloak.
 :5555 {
 	bind 127.0.0.1
 
@@ -35,6 +39,17 @@
 		reverse_proxy keycloak:8080
 	}
 	respond 404
+
+	# Only reached when Keycloak can't be contacted (the name was already checked
+	# by @knownTenant above, so it is safe to use in a file path).
+	handle_errors {
+		@alreadyHasCert file {
+			root /data/caddy/certificates
+			try_files acme-v02.api.letsencrypt.org-directory/{query.domain}/{query.domain}.crt acme.zerossl.com-v2-dv90/{query.domain}/{query.domain}.crt
+		}
+		respond @alreadyHasCert 200
+		respond 404
+	}
 }
 
 *.app.{$DOMAIN} {

@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  One-time setup so GitHub Actions can deploy to the EC2 server without SSH and
+  without any stored AWS keys, and so the server itself can use Systems Manager
+  (Session Manager instead of SSH) and S3 through an IAM role.
+  Upload in the AWS console: CloudFormation -> Create stack -> Upload a template file.
+
+Parameters:
+  GitHubRepo:
+    Type: String
+    Default: Kedar-Kapse/Multi-Tenant-Business-Platform-with-Notifications
+    Description: owner/repository that is allowed to deploy (only its main branch)
+  InstanceId:
+    Type: String
+    Description: The EC2 server GitHub may deploy to, e.g. i-0123456789abcdef0
+  ReportsBucket:
+    Type: String
+    Default: kedar-patient-reports-2026
+    Description: S3 bucket for patient report files (business-service)
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: "false only if this AWS account already trusts token.actions.githubusercontent.com"
+
+Conditions:
+  CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+
+Resources:
+  # --- 1. AWS trusts GitHub's login tokens (OIDC). Nothing secret is shared. ---
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  # --- 2. The role GitHub becomes while deploying. ---
+  # Only the main branch of this one repository can use it, and it can only
+  # run commands on this one server -- nothing else in the account.
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-deploy
+      Description: Used by GitHub Actions (main branch) to deploy via Systems Manager
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+      Policies:
+        - PolicyName: run-deploy-on-one-server
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}
+                  - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+              - Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: "*"
+
+  # --- 3. The role the SERVER itself has. ---
+  # Systems Manager: lets AWS run the deploy, and gives Session Manager
+  # (browser terminal, no port 22, no .pem, no "My IP" problem).
+  # S3: business-service reads/writes report files without any keys on the server.
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: multi-tenant-server
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: patient-reports-bucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]   # upload + download link, nothing more
+                Resource: !Sub arn:aws:s3:::${ReportsBucket}/reports/*
+
+  ServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: multi-tenant-server
+      Roles: [!Ref ServerRole]
+
+Outputs:
+  DeployRoleArn:
+    Description: Put this in GitHub -> Settings -> Variables as AWS_DEPLOY_ROLE_ARN
+    Value: !GetAtt GitHubDeployRole.Arn
+  ServerInstanceProfile:
+    Description: Attach this to the EC2 server (Actions -> Security -> Modify IAM role)
+    Value: !Ref ServerInstanceProfile
