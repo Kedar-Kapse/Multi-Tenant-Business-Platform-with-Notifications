@@ -3,6 +3,8 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # Adds Caddy (HTTPS + routing by hostname) as the only public entry point.
+# Every service has restart: unless-stopped, so after a server reboot or a
+# crash Docker starts it again by itself -- no SSH needed.
 # Needs DOMAIN in the server's .env, e.g. DOMAIN=kapse.online
 
 services:
@@ -30,6 +32,7 @@ services:
       - platform-network
 
   keycloak:
+    restart: unless-stopped
     environment:
       # Keycloak sits behind Caddy: trust its X-Forwarded-* headers so
       # login pages and tokens use https://auth.<domain>.
@@ -42,22 +45,41 @@ services:
   # IMAGE_TAG=<commit sha> in .env pins an exact version (rollback); default latest.
   service-registry:
     image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME in .env}/service-registry:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   access-security-service:
     image: ${DOCKERHUB_USERNAME}/access-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   api-gateway:
     image: ${DOCKERHUB_USERNAME}/api-gateway:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   admin-service:
     image: ${DOCKERHUB_USERNAME}/admin-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   business-service:
     image: ${DOCKERHUB_USERNAME}/business-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   notification-service:
     image: ${DOCKERHUB_USERNAME}/notification-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   admin-portal:
     image: ${DOCKERHUB_USERNAME}/admin-portal:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   provider-portal:
     image: ${DOCKERHUB_USERNAME}/provider-portal:${IMAGE_TAG:-latest}
+    restart: unless-stopped
   patient-portal:
     image: ${DOCKERHUB_USERNAME}/patient-portal:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+
+  # Infrastructure from the base file: also come back after a reboot or crash.
+  postgres:
+    restart: unless-stopped
+  redis:
+    restart: unless-stopped
+  kafka:
+    restart: unless-stopped
+  maildev:
+    restart: unless-stopped
 
 volumes:
   caddy-data:
