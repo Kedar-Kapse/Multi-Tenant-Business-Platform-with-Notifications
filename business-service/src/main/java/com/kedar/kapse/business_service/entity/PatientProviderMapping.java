@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import com.kedar.kapse.platform_core.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,6 +24,10 @@ import java.util.UUID;
 @AllArgsConstructor
 @SuperBuilder
 public class PatientProviderMapping extends BaseEntity {
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 64, nullable = false, updatable = false)
+    private String tenantRealm;
 
     // NOTE: patientId stays as UUID (design choice: aggregate root pattern, not JPA FK)
     @Column(name = "patient_id", nullable = false)

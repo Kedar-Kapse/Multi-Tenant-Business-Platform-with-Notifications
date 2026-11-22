@@ -25,4 +25,12 @@ public interface StaffService {
     StaffResponse activateStaff(UUID id);
 
     Page<StaffResponse> searchStaff(String query, StaffRole role, StaffStatus status, Pageable pageable);
+
+    /** The logged-in staff member's own record (by Keycloak user id). */
+    StaffResponse getMyProfile(String keycloakUserId);
+
+    StaffResponse updateMyProfile(String keycloakUserId, com.kedar.kapse.platform_core.dto.UpdateMyStaffProfileRequest request);
+
+    /** Patient-safe list of bookable clinicians. */
+    Page<com.kedar.kapse.platform_core.dto.ProviderDirectoryEntry> providerDirectory(String query, StaffRole role, Pageable pageable);
 }

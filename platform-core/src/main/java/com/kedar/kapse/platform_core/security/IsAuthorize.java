@@ -16,11 +16,12 @@ import java.lang.annotation.Target;
  *   public PatientDTO getPatient(@PathVariable String id) { ... }
  *
  * BYPASS:
- *   Users with the "super-admin" role automatically bypass all @IsAuthorize checks.
+ *   Platform admins (super-admin role from the platform realm, see PlatformAccess)
+ *   bypass all @IsAuthorize checks. The same role from a hospital realm does not.
  *
  * PROCESSING:
  *   IsAuthorizeAspect intercepts methods annotated with @IsAuthorize and:
- *   1. Checks if the user has super-admin role -> bypass
+ *   1. Checks if the user is a platform admin -> bypass
  *   2. Calls IamRestApiProvider.searchPermissionByRoleName() to fetch role composites
  *   3. Verifies the required permission exists in the composites
  *   4. Throws AccessDeniedException if the check fails

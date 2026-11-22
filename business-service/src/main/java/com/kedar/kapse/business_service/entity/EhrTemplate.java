@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,10 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class EhrTemplate {
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 64, nullable = false, updatable = false)
+    private String tenantRealm;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

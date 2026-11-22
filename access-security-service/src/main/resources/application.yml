@@ -16,11 +16,23 @@ spring:
       connection-timeout: 30000
       maximum-pool-size: 10
 
+  # Versioned database changes (src/main/resources/db/migration), run once, in order,
+  # before Hibernate starts. Own history table because services share platform_db.
+  flyway:
+    enabled: true
+    table: flyway_history_access
+    baseline-on-migrate: true
+    baseline-version: 0
+    placeholders:
+      # Hospital given to rows that existed before tenant separation (V1).
+      legacyTenant: ${LEGACY_TENANT_REALM:hospital-a}
   jpa:
+    # Release the DB connection when the request's service call ends (not after the view).
+    open-in-view: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: ${SHOW_SQL:false}  # SQL logging off by default (slow, and logs patient data)
     properties:
       hibernate:
         temp:
@@ -114,6 +126,8 @@ eureka:
 # ==========================================================================
 # PORTAL SWITCHING — Cross-portal navigation for ADMIN users
 # ==========================================================================
+# "{tenant}" in a url is replaced by the caller's hospital, e.g.
+# PORTAL_PROVIDER_URL=https://{tenant}.app.example.com in production.
 portal:
   switch-code-ttl-seconds: 30
   portals:

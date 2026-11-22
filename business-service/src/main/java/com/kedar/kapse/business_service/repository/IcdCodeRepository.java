@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface IcdCodeRepository extends JpaRepository<IcdCode, UUID> {
 
     @Query("SELECT i FROM IcdCode i WHERE LOWER(i.code) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(i.description) LIKE LOWER(CONCAT('%',:q,'%')) ORDER BY i.code")
-    List<IcdCode> search(String q);
+    List<IcdCode> search(@org.springframework.data.repository.query.Param("q") String q, org.springframework.data.domain.Pageable page);
 
     boolean existsByCode(String code);
 }

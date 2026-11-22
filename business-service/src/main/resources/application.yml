@@ -13,7 +13,19 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+  # Versioned database changes (src/main/resources/db/migration), run once, in order,
+  # before Hibernate starts. Own history table because services share platform_db.
+  flyway:
+    enabled: true
+    table: flyway_history_business
+    baseline-on-migrate: true
+    baseline-version: 0
+    placeholders:
+      # Hospital given to rows that existed before tenant separation (V1).
+      legacyTenant: ${LEGACY_TENANT_REALM:hospital-a}
   jpa:
+    # Release the DB connection when the request's service call ends (not after the view).
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: false
@@ -72,7 +84,8 @@ internal:
   api-key: ${INTERNAL_API_KEY:changeme-dev-only}
 
 portal:
-  patient-base-url: ${PATIENT_PORTAL_BASE_URL:http://localhost:3001}
+  # "{tenant}" becomes the patient's hospital. Dev default: the local patient portal (port 3002).
+  patient-url-template: ${PATIENT_PORTAL_URL_TEMPLATE:http://localhost:3002}
 
 pcc:
   api:
@@ -134,3 +147,10 @@ aws:
   s3:
     bucket: ${AWS_S3_BUCKET:kedar-patient-reports-2026}
     presigned-url-minutes: 5
+
+# Demo/sample data created at first start (claims, appointments, inventory...).
+# It belongs to one hospital; set DEMO_DATA_ENABLED=false for a real deployment.
+app:
+  demo-data:
+    enabled: ${DEMO_DATA_ENABLED:true}
+    tenant: ${DEMO_DATA_TENANT:hospital-a}

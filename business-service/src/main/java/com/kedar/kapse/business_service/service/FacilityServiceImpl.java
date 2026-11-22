@@ -27,7 +27,15 @@ public class FacilityServiceImpl implements FacilityService {
     @Override
     @Transactional
     public FacilityResponse createFacility(CreateFacilityRequest request) {
-        UUID tenantId = UUID.fromString(request.getTenantId());
+        UUID tenantId = null;
+        if (request.getTenantId() != null && !request.getTenantId().isBlank()) {
+            try {
+                tenantId = UUID.fromString(request.getTenantId());
+            } catch (IllegalArgumentException e) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "tenantId is not a valid id");
+            }
+        }
         log.info("Creating facility '{}' for tenant '{}'", request.getName(), tenantId);
 
         Facility facility = Facility.builder()

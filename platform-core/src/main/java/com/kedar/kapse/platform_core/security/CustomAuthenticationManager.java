@@ -78,6 +78,11 @@ public class CustomAuthenticationManager implements AuthenticationManager {
         attributes.put("iss", claims.getIssuer());
         attributes.put("preferred_username", claims.getClaim("preferred_username"));
         attributes.put("email", claims.getClaim("email"));
+        attributes.put("name", claims.getClaim("name"));
+        attributes.put("given_name", claims.getClaim("given_name"));
+        attributes.put("family_name", claims.getClaim("family_name"));
+        // Keycloak session of this login (to show "this device" in the sessions list)
+        attributes.put("sid", claims.getClaim("sid") != null ? claims.getClaim("sid") : claims.getClaim("session_state"));
         attributes.put("realm_access", claims.getClaim("realm_access"));
         attributes.put("resource_access", claims.getClaim("resource_access"));
         attributes.put("azp", claims.getClaim("azp"));

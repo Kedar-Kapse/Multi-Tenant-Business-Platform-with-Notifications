@@ -39,17 +39,26 @@ import java.util.UUID;
 public class PatientServiceImpl implements PatientService {
 
     private final PatientRepository patientRepository;
+    private final com.kedar.kapse.business_service.repository.PatientProviderMappingRepository patientProviderMappingRepository;
 
     @Autowired(required = false)
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    @Value("${portal.patient-base-url:http://localhost:3001}")
-    private String patientPortalBaseUrl;
+    /** Patient portal address; "{tenant}" is replaced by the patient's hospital,
+     *  e.g. https://{tenant}.patient.example.com (prod) or http://localhost:3002 (dev). */
+    @Value("${portal.patient-url-template:http://localhost:3002}")
+    private String patientPortalUrlTemplate;
 
     @Override
     @Transactional(readOnly = true)
     public Page<PatientResponse> searchPatients(String query, PatientStatus status, Pageable pageable) {
-        return patientRepository.searchPatients(query, status, pageable).map(this::toResponse);
+        return patientRepository.searchPatients(query, status, null, pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PatientResponse> searchPatientsOfProvider(String query, PatientStatus status, UUID providerId, Pageable pageable) {
+        return patientRepository.searchPatients(query, status, providerId, pageable).map(this::toResponse);
     }
 
     @Override
@@ -91,7 +100,16 @@ public class PatientServiceImpl implements PatientService {
     @Override
     @Transactional
     public PatientResponse createPatientForProvider(UUID providerId, CreatePatientRequest req) {
-        return createPatient(req);
+        PatientResponse created = createPatient(req);
+        // Link the patient to the provider who added them ("My Patients"); previously ignored.
+        if (!patientProviderMappingRepository.existsByPatientIdAndProviderId(created.getId(), providerId)) {
+            patientProviderMappingRepository.save(com.kedar.kapse.business_service.entity.PatientProviderMapping.builder()
+                    .patientId(created.getId())
+                    .providerId(providerId)
+                    .isPrimary(true)
+                    .build());
+        }
+        return created;
     }
 
     @Override
@@ -193,6 +211,9 @@ public class PatientServiceImpl implements PatientService {
     }
 
     private static String hashSsn(String ssn) {
+        if (ssn == null || ssn.isBlank()) {
+            throw new IllegalStateException("SSN is required");
+        }
         String digits = ssn.replaceAll("[^0-9]", "");
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256")
@@ -209,7 +230,9 @@ public class PatientServiceImpl implements PatientService {
             return;
         }
         try {
-            String registrationLink = patientPortalBaseUrl + "/register?email="
+            String portalUrl = patientPortalUrlTemplate.replace("{tenant}",
+                    patient.getTenantRealm() != null ? patient.getTenantRealm() : "");
+            String registrationLink = portalUrl + "/register?email="
                     + URLEncoder.encode(patient.getEmail(), StandardCharsets.UTF_8);
             PatientCreatedPayload payload = PatientCreatedPayload.builder()
                     .patientId(patient.getId().toString())

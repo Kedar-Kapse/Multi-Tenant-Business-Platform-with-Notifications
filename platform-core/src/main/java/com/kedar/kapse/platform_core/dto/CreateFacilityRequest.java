@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateFacilityRequest {
 
-    @NotBlank(message = "Tenant ID is required")
+    /** Optional legacy tenants.id; the hospital is taken from the caller's login (tenant_realm). */
     private String tenantId;
 
     @NotBlank(message = "Facility name is required")

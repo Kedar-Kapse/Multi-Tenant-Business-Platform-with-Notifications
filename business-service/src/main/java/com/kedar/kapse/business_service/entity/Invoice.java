@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,6 +17,10 @@ import java.util.UUID;
 @Entity @Table(name = "invoices") @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class Invoice {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 64, nullable = false, updatable = false)
+    private String tenantRealm;
     @Column(nullable = false, unique = true, length = 20) private String invoiceNumber;
     // NOTE: patientId stays as String (design choice: aggregate root pattern, not JPA FK)
     @Column(nullable = false, length = 100) private String patientId;

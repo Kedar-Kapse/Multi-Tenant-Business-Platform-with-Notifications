@@ -49,6 +49,11 @@ services:
   access-security-service:
     image: ${DOCKERHUB_USERNAME}/access-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    environment:
+      # Portal switching sends the user to their own hospital's address.
+      - PORTAL_ADMIN_URL=https://{tenant}.admin.${DOMAIN}
+      - PORTAL_PROVIDER_URL=https://{tenant}.app.${DOMAIN}
+      - PORTAL_PATIENT_URL=https://{tenant}.patient.${DOMAIN}
   api-gateway:
     image: ${DOCKERHUB_USERNAME}/api-gateway:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -58,6 +63,9 @@ services:
   business-service:
     image: ${DOCKERHUB_USERNAME}/business-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    environment:
+      # Link in the "complete your registration" email: the patient's hospital portal.
+      - PATIENT_PORTAL_URL_TEMPLATE=https://{tenant}.patient.${DOMAIN}
   notification-service:
     image: ${DOCKERHUB_USERNAME}/notification-service:${IMAGE_TAG:-latest}
     restart: unless-stopped

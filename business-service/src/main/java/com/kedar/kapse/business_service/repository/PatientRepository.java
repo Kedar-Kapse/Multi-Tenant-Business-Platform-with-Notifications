@@ -78,8 +78,11 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
            "LOWER(p.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.email) LIKE LOWER(CONCAT('%', :query, '%'))) " +
-           "AND (:status IS NULL OR p.status = :status)")
+           "AND (:status IS NULL OR p.status = :status) " +
+           "AND (:providerId IS NULL OR EXISTS (SELECT 1 FROM PatientProviderMapping m " +
+           "     WHERE m.patientId = p.id AND m.providerId = :providerId))")
     Page<Patient> searchPatients(@Param("query") String query,
                                  @Param("status") PatientStatus status,
+                                 @Param("providerId") java.util.UUID providerId,
                                  Pageable pageable);
 }

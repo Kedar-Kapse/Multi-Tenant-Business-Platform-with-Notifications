@@ -18,4 +18,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     List<Message> findByThread(String threadId);
 
     long countByRecipientIdAndReadFalse(String recipientId);
+
+    List<Message> findByThreadIdAndRecipientIdAndReadFalse(String threadId, String recipientId);
+
+    boolean existsByThreadIdAndSenderIdOrThreadIdAndRecipientId(String threadId1, String senderId, String threadId2, String recipientId);
 }

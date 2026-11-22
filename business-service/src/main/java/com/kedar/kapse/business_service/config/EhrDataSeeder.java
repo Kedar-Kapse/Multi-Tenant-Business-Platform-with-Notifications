@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.config;
 
+import com.kedar.kapse.platform_core.security.TenantContext;
 import com.kedar.kapse.business_service.entity.CptCode;
 import com.kedar.kapse.business_service.entity.EhrTemplate;
 import com.kedar.kapse.business_service.entity.IcdCode;
@@ -15,10 +16,14 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "app.demo-data.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 @Order(10)
 public class EhrDataSeeder implements CommandLineRunner {
+
+    @org.springframework.beans.factory.annotation.Value("${app.demo-data.tenant:hospital-a}")
+    private String demoTenant;
 
     private final EhrTemplateRepository templateRepo;
     private final IcdCodeRepository icdRepo;
@@ -26,6 +31,11 @@ public class EhrDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // Demo rows belong to one hospital (tenant columns are filled from TenantContext).
+        TenantContext.runAs(demoTenant, this::seed);
+    }
+
+    private void seed() {
         seedTemplates();
         seedIcdCodes();
         seedCptCodes();

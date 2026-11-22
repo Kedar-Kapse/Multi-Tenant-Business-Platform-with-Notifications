@@ -6,10 +6,17 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.mapping.PropertyReferenceException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -102,6 +109,39 @@ public class GlobalExceptionHandler {
         log.warn("{}: {}", status, ex.getReason());
         return ResponseEntity.status(status)
                 .body(buildBody(status, status.getReasonPhrase(), ex.getReason()));
+    }
+
+    // Bad request input: wrong type (e.g. not a UUID), missing parameter, unknown sort field.
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class,
+            PropertyReferenceException.class})
+    public ResponseEntity<Map<String, Object>> handleBadParameter(Exception ex) {
+        String message = ex instanceof MethodArgumentTypeMismatchException m
+                ? "Invalid value for '" + m.getName() + "'"
+                : ex instanceof MissingServletRequestParameterException m
+                        ? "Missing parameter '" + m.getParameterName() + "'"
+                        : "Invalid sort or filter field";
+        return ResponseEntity.badRequest().body(buildBody(HttpStatus.BAD_REQUEST, "Bad Request", message));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethod(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(buildBody(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", ex.getMessage()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(buildBody(HttpStatus.NOT_FOUND, "Not Found", "No such endpoint"));
+    }
+
+    // @PreAuthorize denials: "you are logged in but not allowed" is 403, not a server error.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(buildBody(HttpStatus.FORBIDDEN, "Forbidden",
+                        "You do not have permission to perform this action."));
     }
 
     @ExceptionHandler(RuntimeException.class)

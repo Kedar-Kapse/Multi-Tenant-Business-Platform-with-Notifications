@@ -61,10 +61,8 @@ public class GatewaySecurityConfig {
                 .authorizeExchange(exchanges -> exchanges
                         // Public endpoints
                         .pathMatchers("/access-security/api/auth/**").permitAll()
-                        .pathMatchers("/access-security/api/admin/v1/dashboard/**").permitAll()
                         .pathMatchers("/actuator/health", "/actuator/info").permitAll()
                         .pathMatchers("/*/actuator/health", "/*/actuator/info").permitAll()
-                        .pathMatchers("/access-security/api/realms/**").permitAll()
                         // Block all internal service-to-service endpoints at the gateway
                         .pathMatchers("/*/internal/**").denyAll()
                         // Everything else requires valid JWT

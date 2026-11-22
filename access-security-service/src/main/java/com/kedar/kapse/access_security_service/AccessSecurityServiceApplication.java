@@ -30,7 +30,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         )
 )
 @EntityScan(basePackages = "com.kedar.kapse.access_security_service.entity")
-@EnableJpaRepositories(basePackages = "com.kedar.kapse.access_security_service.repository")
+// Tenant-aware base: also filters load-by-id by hospital (see TenantAwareJpaRepository).
+@EnableJpaRepositories(basePackages = "com.kedar.kapse.access_security_service.repository",
+        repositoryBaseClass = com.kedar.kapse.platform_core.tenancy.TenantAwareJpaRepository.class)
 public class AccessSecurityServiceApplication {
 
 	public static void main(String[] args) {

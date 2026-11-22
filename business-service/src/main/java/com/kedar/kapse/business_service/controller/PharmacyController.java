@@ -1,5 +1,7 @@
 package com.kedar.kapse.business_service.controller;
 
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.kedar.kapse.business_service.service.PharmacyStockService;
 import com.kedar.kapse.platform_core.dto.CreatePharmacyStockRequest;
 import com.kedar.kapse.platform_core.dto.PharmacyStockResponse;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@PreAuthorize("hasAnyRole('ADMIN','PROVIDER','PHYSICIAN','NURSE','THERAPIST')") // all hospital staff; writes below may require ADMIN
 @RestController
 @RequestMapping("/api/inventory/pharmacy")
 @RequiredArgsConstructor
@@ -57,17 +60,19 @@ public class PharmacyController {
         return pharmacyStockService.getStockStatistics(facilityId);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PharmacyStockResponse create(@RequestBody CreatePharmacyStockRequest req) {
+    public PharmacyStockResponse create(@Valid @RequestBody CreatePharmacyStockRequest req) {
         return pharmacyStockService.createStock(req);
     }
 
     @PutMapping("/{id}")
-    public PharmacyStockResponse update(@PathVariable UUID id, @RequestBody UpdatePharmacyStockRequest req) {
+    public PharmacyStockResponse update(@PathVariable UUID id, @Valid @RequestBody UpdatePharmacyStockRequest req) {
         return pharmacyStockService.updateStock(id, req);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {

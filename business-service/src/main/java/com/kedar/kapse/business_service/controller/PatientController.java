@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.controller;
 
+import com.kedar.kapse.platform_core.security.CurrentUser;
 import com.kedar.kapse.business_service.service.PatientService;
 import com.kedar.kapse.platform_core.dto.CreatePatientRequest;
 import com.kedar.kapse.platform_core.dto.PatientResponse;
@@ -14,7 +15,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -34,13 +34,19 @@ public class PatientController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String query,
             @RequestParam(required = false) PatientStatus status,
+            @RequestParam(defaultValue = "false") boolean mine,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
         Sort sort = sortDir.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
-        return ResponseEntity.ok(patientService.searchPatients(query, status,
-                PageRequest.of(page, Math.min(size, 100), sort)));
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), sort);
+        // mine=true: only patients linked to the calling provider ("My Patients")
+        if (mine) {
+            return ResponseEntity.ok(patientService.searchPatientsOfProvider(query, status,
+                    UUID.fromString(CurrentUser.get().id()), pageable));
+        }
+        return ResponseEntity.ok(patientService.searchPatients(query, status, pageable));
     }
 
     @GetMapping("/{id}")
@@ -50,13 +56,13 @@ public class PatientController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER', 'PHYSICIAN', 'NURSE', 'THERAPIST')")
     public ResponseEntity<PatientResponse> create(@Valid @RequestBody CreatePatientRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(patientService.createPatient(request));
     }
 
     @PostMapping("/by-provider/{providerId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER', 'PHYSICIAN', 'NURSE', 'THERAPIST')")
     public ResponseEntity<PatientResponse> createForProvider(
             @PathVariable UUID providerId,
             @Valid @RequestBody CreatePatientRequest request) {
@@ -72,7 +78,7 @@ public class PatientController {
     }
 
     @PostMapping("/{id}/pcc-sync")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER', 'PHYSICIAN', 'NURSE', 'THERAPIST')")
     public ResponseEntity<PatientResponse> triggerPccSync(@PathVariable UUID id) {
         return ResponseEntity.ok(patientService.triggerPccSync(id));
     }
@@ -82,8 +88,11 @@ public class PatientController {
      * Identified by the Keycloak user ID extracted from the JWT subject claim.
      */
     @GetMapping("/me")
-    public ResponseEntity<PatientResponse> getMyProfile(Authentication authentication) {
-        String keycloakUserId = authentication.getName();
+    @PreAuthorize("hasRole('PATIENT')")
+    public ResponseEntity<PatientResponse> getMyProfile() {
+        // The Keycloak user id ("sub"), which is what patients.keycloak_user_id stores.
+        // authentication.getName() is the username, so it never matched.
+        String keycloakUserId = CurrentUser.get().id();
         log.debug("GET /api/patients/me — keycloakUserId={}", keycloakUserId);
         return ResponseEntity.ok(patientService.getMyProfile(keycloakUserId));
     }
@@ -94,10 +103,10 @@ public class PatientController {
      * Email, MRN, and SSN are excluded from self-service updates.
      */
     @PatchMapping("/me")
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<PatientResponse> updateMyProfile(
-            Authentication authentication,
             @Valid @RequestBody UpdatePatientProfileRequest request) {
-        String keycloakUserId = authentication.getName();
+        String keycloakUserId = CurrentUser.get().id();
         log.info("PATCH /api/patients/me — keycloakUserId={}", keycloakUserId);
         return ResponseEntity.ok(patientService.updateMyProfile(keycloakUserId, request));
     }

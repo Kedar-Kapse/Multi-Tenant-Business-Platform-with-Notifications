@@ -1,5 +1,7 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.platform_core.security.PlatformAccess;
+import com.kedar.kapse.platform_core.security.SecretGenerator;
 import com.kedar.kapse.access_security_service.entity.Tenant;
 import com.kedar.kapse.access_security_service.mapper.ResponseMapper;
 import com.kedar.kapse.access_security_service.repository.TenantRepository;
@@ -25,6 +27,7 @@ public class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
     private final KeycloakService keycloakService;
+    private final PlatformAccess platformAccess;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
@@ -36,10 +39,17 @@ public class TenantServiceImpl implements TenantService {
                 .trim()
                 .replaceAll("\\s+", "-");
         String schemaName = "tenant_" + tenantCode.replace("-", "_");
-        String clientSecret = tenantCode + "-secret";
+        // Random, never derived from the name: anyone could guess "<code>-secret".
+        String clientSecret = SecretGenerator.newSecret();
 
         log.info("Onboarding tenant: name='{}', code='{}', realm='{}', schema='{}'",
                 request.getName(), tenantCode, realmName, schemaName);
+
+        // The realm name becomes the hospital's address (<realm>.admin.<domain>), so it
+        // must not take over Keycloak's admin realm or the platform admins' realm.
+        if (realmName.isBlank() || platformAccess.isReservedRealm(realmName)) {
+            throw new IllegalArgumentException("'" + request.getName() + "' cannot be used as a hospital name");
+        }
 
         // Step 1: Check if tenant already exists
         if (tenantRepository.existsByTenantCode(tenantCode)) {

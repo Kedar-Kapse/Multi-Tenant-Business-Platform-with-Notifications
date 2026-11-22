@@ -1,5 +1,7 @@
 package com.kedar.kapse.business_service.controller;
 
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.kedar.kapse.business_service.service.BedService;
 import com.kedar.kapse.platform_core.dto.BedResponse;
 import com.kedar.kapse.platform_core.dto.CreateBedRequest;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@PreAuthorize("hasAnyRole('ADMIN','PROVIDER','PHYSICIAN','NURSE','THERAPIST')") // all hospital staff; writes below may require ADMIN
 @RestController
 @RequestMapping("/api/inventory/beds")
 @RequiredArgsConstructor
@@ -48,17 +51,19 @@ public class BedController {
         return bedService.getBedStatistics(facilityId);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public BedResponse create(@RequestParam UUID facilityId, @RequestBody CreateBedRequest req) {
+    public BedResponse create(@RequestParam UUID facilityId, @Valid @RequestBody CreateBedRequest req) {
         return bedService.createBed(facilityId, req);
     }
 
     @PutMapping("/{id}")
-    public BedResponse update(@PathVariable UUID id, @RequestBody UpdateBedRequest req) {
+    public BedResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateBedRequest req) {
         return bedService.updateBed(id, req);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {

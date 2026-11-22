@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.config;
 
+import com.kedar.kapse.platform_core.security.TenantContext;
 import com.kedar.kapse.business_service.entity.Appointment;
 import com.kedar.kapse.business_service.entity.Invoice;
 import com.kedar.kapse.business_service.entity.Message;
@@ -20,8 +21,12 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
-@Component @RequiredArgsConstructor @Slf4j @Order(40)
+@Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "app.demo-data.enabled", havingValue = "true", matchIfMissing = true) @RequiredArgsConstructor @Slf4j @Order(40)
 public class PatientDataSeeder implements CommandLineRunner {
+
+    @org.springframework.beans.factory.annotation.Value("${app.demo-data.tenant:hospital-a}")
+    private String demoTenant;
 
     private final AppointmentRepository apptRepo;
     private final InvoiceRepository invRepo;
@@ -30,6 +35,11 @@ public class PatientDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // Demo rows belong to one hospital (tenant columns are filled from TenantContext).
+        TenantContext.runAs(demoTenant, this::seed);
+    }
+
+    private void seed() {
         seedAppointments();
         seedInvoices();
         seedDocuments();

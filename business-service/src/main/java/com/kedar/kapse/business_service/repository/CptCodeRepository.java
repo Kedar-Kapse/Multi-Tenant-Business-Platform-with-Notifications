@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface CptCodeRepository extends JpaRepository<CptCode, UUID> {
 
     @Query("SELECT c FROM CptCode c WHERE LOWER(c.code) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(c.description) LIKE LOWER(CONCAT('%',:q,'%')) ORDER BY c.code")
-    List<CptCode> search(String q);
+    List<CptCode> search(@org.springframework.data.repository.query.Param("q") String q, org.springframework.data.domain.Pageable page);
 
     boolean existsByCode(String code);
 }

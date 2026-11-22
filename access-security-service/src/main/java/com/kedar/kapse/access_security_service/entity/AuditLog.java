@@ -1,5 +1,6 @@
 package com.kedar.kapse.access_security_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import com.kedar.kapse.platform_core.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +16,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "audit_logs", indexes = {
         @Index(name = "idx_audit_entity", columnList = "entityType,entityId"),
         @Index(name = "idx_audit_actor", columnList = "actorId")
+        // (tenant_realm, created_at) index: Flyway V1
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -35,7 +37,13 @@ public class AuditLog extends BaseEntity {
     @Column(length = 100)
     private String actorId;
 
-    @Column(length = 50)
+    /** Display name of who did it (from their login), so the log is readable. */
+    @Column(length = 150)
+    private String actorName;
+
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 50, nullable = false, updatable = false)
     private String tenantRealm;
 
     @Column(columnDefinition = "TEXT")

@@ -203,4 +203,57 @@ public class StaffServiceImpl implements StaffService {
     public Page<StaffResponse> searchStaff(String query, StaffRole role, StaffStatus status, Pageable pageable) {
         return staffRepository.searchStaff(query, role, status, pageable).map(ResponseMapper::toStaffResponse);
     }
+
+    private static final java.util.List<StaffRole> CLINICAL_ROLES =
+            java.util.List.of(StaffRole.DOCTOR, StaffRole.NURSE, StaffRole.THERAPIST);
+
+    private Staff findMine(String keycloakUserId) {
+        return staffRepository.findByKeycloakUserId(keycloakUserId)
+                .orElseThrow(() -> new EntityNotFoundException("No staff record for this login"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StaffResponse getMyProfile(String keycloakUserId) {
+        return ResponseMapper.toStaffResponse(findMine(keycloakUserId));
+    }
+
+    @Override
+    public StaffResponse updateMyProfile(String keycloakUserId,
+                                         com.kedar.kapse.platform_core.dto.UpdateMyStaffProfileRequest r) {
+        Staff staff = findMine(keycloakUserId);
+        if (r.getPhone() != null) staff.setPhone(blankToNull(r.getPhone()));
+        if (r.getSpecialization() != null) staff.setSpecialization(blankToNull(r.getSpecialization()));
+        if (r.getLicenseNumber() != null) staff.setLicenseNumber(blankToNull(r.getLicenseNumber()));
+        if (r.getExperienceYears() != null) staff.setExperienceYears(r.getExperienceYears());
+        if (r.getAddressLine1() != null) staff.setAddressLine1(blankToNull(r.getAddressLine1()));
+        if (r.getAddressLine2() != null) staff.setAddressLine2(blankToNull(r.getAddressLine2()));
+        if (r.getCity() != null) staff.setCity(blankToNull(r.getCity()));
+        if (r.getState() != null) staff.setState(blankToNull(r.getState()));
+        if (r.getCountry() != null) staff.setCountry(blankToNull(r.getCountry()));
+        if (r.getZipCode() != null) staff.setZipCode(blankToNull(r.getZipCode()));
+        return ResponseMapper.toStaffResponse(staffRepository.save(staff));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<com.kedar.kapse.platform_core.dto.ProviderDirectoryEntry> providerDirectory(
+            String query, StaffRole role, Pageable pageable) {
+        java.util.Collection<StaffRole> roles = role != null && CLINICAL_ROLES.contains(role)
+                ? java.util.List.of(role) : CLINICAL_ROLES;
+        return staffRepository.findDirectory(query, roles, pageable)
+                .map(s -> com.kedar.kapse.platform_core.dto.ProviderDirectoryEntry.builder()
+                        .id(s.getKeycloakUserId())
+                        .firstName(s.getFirstName())
+                        .lastName(s.getLastName())
+                        .role(s.getRole())
+                        .specialization(s.getSpecialization())
+                        .experienceYears(s.getExperienceYears())
+                        .profilePhotoUrl(s.getProfilePhotoUrl())
+                        .build());
+    }
+
+    private static String blankToNull(String v) {
+        return v == null || v.isBlank() ? null : v.trim();
+    }
 }

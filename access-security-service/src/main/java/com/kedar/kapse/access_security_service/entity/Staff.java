@@ -1,5 +1,6 @@
 package com.kedar.kapse.access_security_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import com.kedar.kapse.platform_core.entity.BaseEntity;
 import com.kedar.kapse.platform_core.enums.Gender;
 import com.kedar.kapse.platform_core.enums.StaffRole;
@@ -15,7 +16,8 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "staff", uniqueConstraints = {
-    @UniqueConstraint(columnNames = "email", name = "uk_staff_email")
+    // Unique per hospital (staff of different hospitals live in different realms).
+    @UniqueConstraint(columnNames = {"tenant_realm", "email"}, name = "uk_staff_tenant_email")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -23,9 +25,13 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @SuperBuilder
 public class Staff extends BaseEntity {
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 64, nullable = false, updatable = false)
+    private String tenantRealm;
     @Column(nullable = false, length = 50) private String firstName;
     @Column(nullable = false, length = 50) private String lastName;
-    @Column(nullable = false, unique = true, length = 100) private String email;
+    @Column(nullable = false, length = 100) private String email;
     @Column(nullable = false, length = 20) private String phone;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private StaffRole role;
     private LocalDate dateOfBirth;

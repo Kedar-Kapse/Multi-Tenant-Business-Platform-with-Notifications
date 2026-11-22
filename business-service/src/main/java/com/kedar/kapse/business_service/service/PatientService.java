@@ -11,6 +11,9 @@ import java.util.UUID;
 
 public interface PatientService {
     Page<PatientResponse> searchPatients(String query, PatientStatus status, Pageable pageable);
+
+    /** Only patients linked to this provider (their "My Patients" list). */
+    Page<PatientResponse> searchPatientsOfProvider(String query, PatientStatus status, UUID providerId, Pageable pageable);
     PatientResponse getById(UUID id);
     PatientResponse createPatient(CreatePatientRequest request);
     PatientResponse createPatientForProvider(UUID providerId, CreatePatientRequest request);

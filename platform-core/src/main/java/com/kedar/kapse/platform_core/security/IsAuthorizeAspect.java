@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  *
  * FLOW:
  *   1. Extract the current authenticated user from SecurityContext
- *   2. Check for super-admin role -> bypass if present
+ *   2. Platform admin (see PlatformAccess) -> bypass
  *   3. If a specific role is specified, search composites for that role
  *   4. Otherwise, iterate all user roles and search composites for each
  *   5. Check if the required permission exists in any composite set
@@ -34,12 +34,12 @@ public class IsAuthorizeAspect {
 
     private static final Logger log = LoggerFactory.getLogger(IsAuthorizeAspect.class);
 
-    private static final String SUPER_ADMIN_AUTHORITY = "ROLE_SUPER-ADMIN";
-
     private final IamRestApiProvider iamProvider;
+    private final PlatformAccess platformAccess;
 
-    public IsAuthorizeAspect(IamRestApiProvider iamProvider) {
+    public IsAuthorizeAspect(IamRestApiProvider iamProvider, PlatformAccess platformAccess) {
         this.iamProvider = iamProvider;
+        this.platformAccess = platformAccess;
     }
 
     @Before("@annotation(com.kedar.kapse.platform_core.security.IsAuthorize)")
@@ -60,12 +60,9 @@ public class IsAuthorizeAspect {
             throw new AccessDeniedException("Not authenticated");
         }
 
-        // SUPER-ADMIN BYPASS
-        boolean isSuperAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equalsIgnoreCase(SUPER_ADMIN_AUTHORITY));
-
-        if (isSuperAdmin) {
-            log.debug("@IsAuthorize bypass: user has super-admin role (method: {}.{})",
+        // PLATFORM ADMIN BYPASS -- "super-admin" only counts from the platform realm
+        if (platformAccess.isPlatformAdmin(authentication)) {
+            log.debug("@IsAuthorize bypass: platform admin (method: {}.{})",
                     joinPoint.getTarget().getClass().getSimpleName(), method.getName());
             return;
         }

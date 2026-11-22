@@ -59,7 +59,8 @@ public class BedServiceImpl implements BedService {
     @Override
     @Transactional(readOnly = true)
     public List<BedResponse> listBedsByFacility(UUID facilityId) {
-        return bedRepository.findByFacilityId(facilityId).stream()
+        // No facility chosen = "All facilities" of the caller's hospital (rows are tenant-filtered).
+        return (facilityId == null ? bedRepository.findAll() : bedRepository.findByFacilityId(facilityId)).stream()
                 .map(InventoryResponseMapper::toBedResponse)
                 .collect(Collectors.toList());
     }

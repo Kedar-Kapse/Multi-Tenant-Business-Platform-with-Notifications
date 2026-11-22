@@ -20,10 +20,16 @@ import java.util.UUID;
 @Slf4j
 public class TenantController {
 
+    /**
+     * Hospitals (tenants) are managed by the platform owner only -- never by a
+     * hospital's own admin. See PlatformAccess for why the role alone is not enough.
+     */
+    private static final String PLATFORM_ADMIN = "@platformAccess.isPlatformAdmin(authentication)";
+
     private final TenantService tenantService;
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PLATFORM_ADMIN)
     @ResponseStatus(HttpStatus.CREATED)
     public TenantResponse createTenant(@Valid @RequestBody CreateTenantRequest request) {
         log.info("POST /api/admin/v1/tenants — creating tenant '{}'", request.getName());
@@ -31,21 +37,21 @@ public class TenantController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PLATFORM_ADMIN)
     public List<TenantResponse> listTenants() {
         log.info("GET /api/admin/v1/tenants — listing all tenants");
         return tenantService.listTenants();
     }
 
     @GetMapping("/{tenantId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize(PLATFORM_ADMIN)
     public TenantResponse getTenantById(@PathVariable UUID tenantId) {
         log.info("GET /api/admin/v1/tenants/{} — fetching tenant", tenantId);
         return tenantService.getTenantById(tenantId);
     }
 
     @PutMapping("/{tenantId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PLATFORM_ADMIN)
     public TenantResponse updateTenant(@PathVariable UUID tenantId,
                                        @Valid @RequestBody UpdateTenantRequest request) {
         log.info("PUT /api/admin/v1/tenants/{} — updating tenant", tenantId);
@@ -53,7 +59,7 @@ public class TenantController {
     }
 
     @DeleteMapping("/{tenantId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PLATFORM_ADMIN)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deactivateTenant(@PathVariable UUID tenantId) {
         log.info("DELETE /api/admin/v1/tenants/{} — deactivating tenant", tenantId);
@@ -61,7 +67,7 @@ public class TenantController {
     }
 
     @PatchMapping("/{tenantId}/activate")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PLATFORM_ADMIN)
     public TenantResponse activateTenant(@PathVariable UUID tenantId) {
         log.info("PATCH /api/admin/v1/tenants/{}/activate — activating tenant", tenantId);
         return tenantService.activateTenant(tenantId);

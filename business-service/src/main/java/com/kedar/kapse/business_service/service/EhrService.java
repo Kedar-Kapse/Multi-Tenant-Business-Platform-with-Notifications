@@ -80,7 +80,7 @@ public class EhrService {
     @Transactional(readOnly = true)
     public List<IcdCode> searchIcdCodes(String query) {
         if (query == null || query.length() < 2) return List.of();
-        return icdRepo.search(query);
+        return icdRepo.search(query, org.springframework.data.domain.PageRequest.of(0, 50)) /* first 50 matches */;
     }
 
     @Transactional
@@ -103,7 +103,7 @@ public class EhrService {
     @Transactional(readOnly = true)
     public List<CptCode> searchCptCodes(String query) {
         if (query == null || query.length() < 2) return List.of();
-        return cptRepo.search(query);
+        return cptRepo.search(query, org.springframework.data.domain.PageRequest.of(0, 50)) /* first 50 matches */;
     }
 
     @Transactional

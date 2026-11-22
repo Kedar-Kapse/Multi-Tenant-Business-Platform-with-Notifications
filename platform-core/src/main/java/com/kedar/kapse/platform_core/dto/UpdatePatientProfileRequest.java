@@ -25,6 +25,7 @@ public class UpdatePatientProfileRequest {
     @Pattern(regexp = "^[+\\d\\s\\-()]{0,20}$", message = "Invalid phone number format")
     private String phone;
 
+    @jakarta.validation.constraints.PastOrPresent(message = "Date of birth cannot be in the future")
     private LocalDate dateOfBirth;
 
     private Gender gender;

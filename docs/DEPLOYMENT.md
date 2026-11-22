@@ -65,6 +65,26 @@ It sets new random passwords (test users must choose their own at first login),
 regenerates the client secrets, updates `.env`, restarts the services that use them,
 and writes the new values only to `~/credentials.txt` (mode 600). Nothing is printed.
 
+## Two kinds of admin
+
+| | Platform admin | Hospital admin (admin-a, admin-b, ...) |
+|---|---|---|
+| Signs in at | `https://platform.admin.<domain>` | `https://<hospital>.admin.<domain>` |
+| Keycloak realm | `platform` | the hospital's realm |
+| Create / list / deactivate hospitals | yes | no (API returns 403) |
+| Hospital staff, patients, claims | no | own hospital only |
+
+A platform admin = role `super-admin` **issued by the `platform` realm**
+(`platform-core/.../security/PlatformAccess.java`). The same role created inside a
+hospital realm is ignored, so a hospital admin cannot promote themselves.
+`master` and `platform` cannot be used as hospital names.
+
+Create the first platform admin once (random temporary password into `~/credentials.txt`):
+
+```
+cd ~/app && bash scripts/create-platform-admin.sh
+```
+
 ## Everyday use
 
 - **Deploy:** push to `main`. Watch it in the repo's **Actions** tab.

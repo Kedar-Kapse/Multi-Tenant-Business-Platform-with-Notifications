@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.config;
 
+import com.kedar.kapse.platform_core.security.TenantContext;
 import com.kedar.kapse.business_service.entity.Bed;
 import com.kedar.kapse.business_service.entity.Facility;
 import com.kedar.kapse.business_service.entity.PharmacyStock;
@@ -23,10 +24,14 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "app.demo-data.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 @Order(20)
 public class InventoryDataSeeder implements CommandLineRunner {
+
+    @org.springframework.beans.factory.annotation.Value("${app.demo-data.tenant:hospital-a}")
+    private String demoTenant;
 
     private final FacilityRepository facilityRepo;
     private final BedRepository bedRepo;
@@ -37,6 +42,11 @@ public class InventoryDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // Demo rows belong to one hospital (tenant columns are filled from TenantContext).
+        TenantContext.runAs(demoTenant, this::seed);
+    }
+
+    private void seed() {
         if (facilityRepo.count() > 0) {
             log.info("Inventory data already seeded ({} facilities)", facilityRepo.count());
             return;

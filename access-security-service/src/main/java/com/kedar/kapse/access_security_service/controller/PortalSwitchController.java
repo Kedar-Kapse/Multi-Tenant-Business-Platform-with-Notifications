@@ -94,7 +94,7 @@ public class PortalSwitchController {
                     roles, accessToken, refreshToken, targetPortal, tenantId);
 
             PortalConfig.PortalEntry portal = portalConfig.getPortals().get(targetPortal);
-            String redirectUrl = portal.getUrl() + "/portal-entry?code=" + code;
+            String redirectUrl = portal.getUrl().replace("{tenant}", com.kedar.kapse.platform_core.security.TenantContext.getRequiredTenantId()) + "/portal-entry?code=" + code;
 
             return ResponseEntity.ok(Map.of(
                     "code", code,

@@ -58,7 +58,7 @@ public class PortalSwitchService {
             Map<String, String> portal = new LinkedHashMap<>();
             portal.put("key", key);
             portal.put("name", entry.getName());
-            portal.put("url", entry.getUrl());
+            portal.put("url", entry.getUrl().replace("{tenant}", String.valueOf(com.kedar.kapse.platform_core.security.TenantContext.getTenantId())));
             result.add(portal);
         });
         return result;

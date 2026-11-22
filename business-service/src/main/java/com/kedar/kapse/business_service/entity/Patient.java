@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import com.kedar.kapse.platform_core.entity.BaseAuditableEntity;
 import com.kedar.kapse.platform_core.enums.Gender;
 import com.kedar.kapse.platform_core.enums.PatientStatus;
@@ -17,9 +18,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "patients", uniqueConstraints = {
-        @UniqueConstraint(columnNames = "email",    name = "uk_patient_email"),
-        @UniqueConstraint(columnNames = "mrn",      name = "uk_patient_mrn"),
-        @UniqueConstraint(columnNames = "ssn_hash", name = "uk_patient_ssn_hash")
+        // Unique per hospital: the same person may be a patient at two hospitals.
+        @UniqueConstraint(columnNames = {"tenant_realm", "email"},    name = "uk_patient_tenant_email"),
+        @UniqueConstraint(columnNames = {"tenant_realm", "mrn"},      name = "uk_patient_tenant_mrn"),
+        @UniqueConstraint(columnNames = {"tenant_realm", "ssn_hash"}, name = "uk_patient_tenant_ssn_hash")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -34,7 +36,7 @@ public class Patient extends BaseAuditableEntity {
     @Column(nullable = false, length = 50)
     private String lastName;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String email;
 
     @Column(length = 20)
@@ -67,7 +69,9 @@ public class Patient extends BaseAuditableEntity {
     @Column(length = 100)
     private String keycloakUserId;
 
-    @Column(length = 50)
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 50, nullable = false, updatable = false)
     private String tenantRealm;
 
     @Enumerated(EnumType.STRING)
@@ -79,7 +83,7 @@ public class Patient extends BaseAuditableEntity {
 
     private LocalDateTime deletedAt;
 
-    @Column(length = 50, unique = true)
+    @Column(length = 50)
     private String mrn;
 
     /** Encrypted at rest via AES-256-GCM. Never expose in API responses or logs. */
@@ -88,7 +92,7 @@ public class Patient extends BaseAuditableEntity {
     private String ssn;
 
     /** SHA-256 of normalized (digits-only) SSN — used for uniqueness checks since ssn column is encrypted. */
-    @Column(name = "ssn_hash", length = 64, unique = true)
+    @Column(name = "ssn_hash", length = 64)
     private String ssnHash;
 
     @Column(length = 100)

@@ -1,5 +1,6 @@
 package com.kedar.kapse.business_service.entity;
 
+import org.hibernate.annotations.TenantId;
 import com.kedar.kapse.platform_core.entity.BaseEntity;
 import com.kedar.kapse.platform_core.enums.BedStatus;
 import com.kedar.kapse.platform_core.enums.BedType;
@@ -20,6 +21,10 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 @SuperBuilder
 public class Bed extends BaseEntity {
+    /** Owning hospital (Keycloak realm). Set and filtered by Hibernate -- see TenantIdentifierResolver. */
+    @TenantId
+    @Column(name = "tenant_realm", length = 64, nullable = false, updatable = false)
+    private String tenantRealm;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "facility_id", nullable = false)
     private Facility facility;

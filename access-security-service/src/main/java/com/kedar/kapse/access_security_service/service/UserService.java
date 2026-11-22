@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@org.springframework.transaction.annotation.Transactional // lazy tenant/roles are read while mapping; needs an open session (open-in-view is off)
 public class UserService {
 
     private final UserRepository userRepository;

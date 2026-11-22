@@ -27,7 +27,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableCaching
 @EnableScheduling
 @EntityScan(basePackages = "com.kedar.kapse.business_service.entity")
-@EnableJpaRepositories(basePackages = "com.kedar.kapse.business_service.repository")
+// Tenant-aware base: also filters load-by-id by hospital (see TenantAwareJpaRepository).
+@EnableJpaRepositories(basePackages = "com.kedar.kapse.business_service.repository",
+        repositoryBaseClass = com.kedar.kapse.platform_core.tenancy.TenantAwareJpaRepository.class)
 @Slf4j
 public class BusinessServiceApplication implements CommandLineRunner {
 

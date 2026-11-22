@@ -1,5 +1,7 @@
 package com.kedar.kapse.business_service.controller;
 
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.kedar.kapse.business_service.service.FacilityService;
 import com.kedar.kapse.platform_core.dto.CreateFacilityRequest;
 import com.kedar.kapse.platform_core.dto.FacilityResponse;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@PreAuthorize("hasAnyRole('ADMIN','PROVIDER','PHYSICIAN','NURSE','THERAPIST')") // all hospital staff; writes below may require ADMIN
 @RestController
 @RequestMapping("/api/inventory/facilities")
 @RequiredArgsConstructor
@@ -31,23 +34,27 @@ public class FacilityController {
         return facilityService.getFacilityById(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public FacilityResponse create(@RequestBody CreateFacilityRequest req) {
+    public FacilityResponse create(@Valid @RequestBody CreateFacilityRequest req) {
         return facilityService.createFacility(req);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public FacilityResponse update(@PathVariable UUID id, @RequestBody UpdateFacilityRequest req) {
+    public FacilityResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateFacilityRequest req) {
         return facilityService.updateFacility(id, req);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deactivate(@PathVariable UUID id) {
         facilityService.deactivateFacility(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/activate")
     public FacilityResponse activate(@PathVariable UUID id) {
         return facilityService.activateFacility(id);

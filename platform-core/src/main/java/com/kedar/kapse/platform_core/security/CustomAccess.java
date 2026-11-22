@@ -25,12 +25,11 @@ import java.util.stream.Collectors;
  *      If the JWT's "azp" (client_id) is "smart_link_client" or "pcc_client",
  *      allow access when no specific permission is required.
  *
- *   2. S2S SECURITY (Service-to-Service):
- *      If X-CODE-CHALLENGE and X-CODE-VERIFIER headers are present,
- *      verify using SHA-256 challenge/verifier (ServiceAuthentication).
+ *   2. (removed) caller-supplied S2S headers are not trusted.
  *
- *   3. SUPER ADMIN BYPASS:
- *      If the user has the "super-admin" role, automatically allow access.
+ *   3. PLATFORM ADMIN BYPASS:
+ *      A platform admin ("super-admin" role issued by the platform realm, see
+ *      PlatformAccess) is allowed. The role from any hospital realm is ignored.
  *
  *   4. PORTAL SPLIT:
  *      a) Enterprise Portal (URI contains "/v2/admins"):
@@ -47,12 +46,18 @@ public class CustomAccess implements AuthorizationManager<RequestAuthorizationCo
     private static final Set<String> SERVICE_ACCOUNT_CLIENTS = Set.of(
             "smart_link_client", "pcc_client"
     );
-    private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER-ADMIN";
+    /** Roles the platform hands out (KeycloakRole) -- not Keycloak's built-in defaults. */
+    private static final Set<String> APPLICATION_ROLES = java.util.Arrays.stream(
+                    com.kedar.kapse.platform_core.enums.KeycloakRole.values())
+            .map(r -> "ROLE_" + r.name())
+            .collect(Collectors.toUnmodifiableSet());
 
     private final IamRestApiProvider iamProvider;
+    private final PlatformAccess platformAccess;
 
-    public CustomAccess(IamRestApiProvider iamProvider) {
+    public CustomAccess(IamRestApiProvider iamProvider, PlatformAccess platformAccess) {
         this.iamProvider = iamProvider;
+        this.platformAccess = platformAccess;
     }
 
     @Override
@@ -73,23 +78,12 @@ public class CustomAccess implements AuthorizationManager<RequestAuthorizationCo
             return new AuthorizationDecision(true);
         }
 
-        // 2. S2S SECURITY (Code Challenge)
-        String codeChallenge = request.getHeader(ServiceAuthentication.CODE_CHALLENGE_HEADER);
-        String codeVerifier = request.getHeader(ServiceAuthentication.CODE_VERIFIER_HEADER);
-
-        if (codeChallenge != null && codeVerifier != null) {
-            if (ServiceAuthentication.verify(codeChallenge, codeVerifier)) {
-                log.debug("Access granted: valid S2S code challenge/verifier");
-                return new AuthorizationDecision(true);
-            } else {
-                log.warn("Access denied: invalid S2S code challenge/verifier");
-                return new AuthorizationDecision(false);
-            }
-        }
+        // (The former "S2S code challenge" bypass was removed: the caller chose both
+        //  the challenge and the verifier, so any logged-in user could skip all checks.)
 
         // 3. SUPER ADMIN BYPASS
-        if (hasRole(authentication, SUPER_ADMIN_ROLE)) {
-            log.debug("Access granted: user has super-admin role");
+        if (platformAccess.isPlatformAdmin(authentication)) {
+            log.debug("Access granted: platform admin");
             return new AuthorizationDecision(true);
         }
 
@@ -137,8 +131,9 @@ public class CustomAccess implements AuthorizationManager<RequestAuthorizationCo
 
         if (facilityId == null || facilityId.isBlank()) {
             log.debug("Provider Portal: no lastLoggedInFacility, falling back to JWT roles");
-            return new AuthorizationDecision(authentication.isAuthenticated()
-                    && !authentication.getAuthorities().isEmpty());
+            // Only real application roles count. Every Keycloak token carries
+            // "default-roles-<realm>", so "has any authority" let everyone in.
+            return new AuthorizationDecision(authentication.isAuthenticated() && hasApplicationRole(authentication));
         }
 
         List<String> facilityRoles = iamProvider.getRolesForFacility(userId, facilityId);
@@ -151,6 +146,12 @@ public class CustomAccess implements AuthorizationManager<RequestAuthorizationCo
         log.debug("Provider Portal access granted: user '{}' has roles {} for facility '{}'",
                 userId, facilityRoles, facilityId);
         return new AuthorizationDecision(true);
+    }
+
+    private boolean hasApplicationRole(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(a -> APPLICATION_ROLES.contains(a.toUpperCase()));
     }
 
     private boolean hasRole(Authentication authentication, String role) {

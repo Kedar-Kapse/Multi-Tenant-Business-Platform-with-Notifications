@@ -14,6 +14,8 @@ import java.util.Map;
  * These return only aggregate counts — no sensitive data.
  * No authentication required (displayed before login).
  */
+/** Platform-wide counts (all hospitals): platform admin only. */
+@org.springframework.security.access.prepost.PreAuthorize("@platformAccess.isPlatformAdmin(authentication)")
 @RestController
 @RequestMapping("/api/admin/v1/dashboard")
 @RequiredArgsConstructor

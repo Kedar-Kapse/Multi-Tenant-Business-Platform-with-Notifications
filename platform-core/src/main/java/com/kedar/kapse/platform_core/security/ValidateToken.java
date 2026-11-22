@@ -76,18 +76,9 @@ public class ValidateToken {
 
         String realm = TenantContextHolder.getTenant();
 
-        // Primary: validate against the tenant's realm
-        if (validateAgainstRealm(token, realm)) {
-            return true;
-        }
-
-        // Fallback: if tenant realm != master, try master realm
-        if (!"master".equals(realm)) {
-            log.debug("Token validation failed for realm '{}', falling back to master realm", realm);
-            return validateAgainstRealm(token, "master");
-        }
-
-        return false;
+        // Only the realm the request is for. (A former fallback to the "master" realm
+        // let a master token act inside every hospital, and doubled the work for bad tokens.)
+        return validateAgainstRealm(token, realm);
     }
 
     /**
@@ -101,18 +92,8 @@ public class ValidateToken {
 
         String realm = TenantContextHolder.getTenant();
 
-        JWTClaimsSet claims = validateAndGetClaims(token, realm);
-        if (claims != null) {
-            return claims;
-        }
-
-        // Fallback to master
-        if (!"master".equals(realm)) {
-            log.debug("Token validation failed for realm '{}', falling back to master", realm);
-            return validateAndGetClaims(token, "master");
-        }
-
-        return null;
+        // Only the realm the request is for (no fallback to "master", see isAuthorize).
+        return validateAndGetClaims(token, realm);
     }
 
     /**

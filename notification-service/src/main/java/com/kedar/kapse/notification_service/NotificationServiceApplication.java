@@ -5,9 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /**
@@ -15,12 +12,13 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
  *
  * Security is re-enabled (SecurityAutoConfiguration no longer excluded).
  * platform-core's SharedSecurityConfig provides default JWT validation.
- * DataSource/JPA excluded because this service uses Kafka, not a database.
+ * It now has a small database table of its own (in-app notifications, see entity/).
  */
-@SpringBootApplication(
-        scanBasePackages = {"com.kedar.kapse", "com.restore.core"},
-        exclude = {DataSourceAutoConfiguration.class, JpaRepositoriesAutoConfiguration.class, HibernateJpaAutoConfiguration.class}
-)
+@SpringBootApplication(scanBasePackages = {"com.kedar.kapse", "com.restore.core"})
+@org.springframework.data.jpa.repository.config.EnableJpaRepositories(
+        basePackages = "com.kedar.kapse.notification_service.repository",
+        repositoryBaseClass = com.kedar.kapse.platform_core.tenancy.TenantAwareJpaRepository.class)
+@org.springframework.boot.autoconfigure.domain.EntityScan("com.kedar.kapse.notification_service.entity")
 @EnableDiscoveryClient
 @Slf4j
 public class NotificationServiceApplication implements CommandLineRunner {

@@ -65,7 +65,8 @@ public class PharmacyStockServiceImpl implements PharmacyStockService {
     @Override
     @Transactional(readOnly = true)
     public List<PharmacyStockResponse> listStockByFacility(UUID facilityId) {
-        return pharmacyStockRepository.findByFacilityId(facilityId).stream()
+        // No facility chosen = "All facilities" of the caller's hospital (rows are tenant-filtered).
+        return (facilityId == null ? pharmacyStockRepository.findAll() : pharmacyStockRepository.findByFacilityId(facilityId)).stream()
                 .map(InventoryResponseMapper::toPharmacyStockResponse)
                 .collect(Collectors.toList());
     }

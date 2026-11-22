@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Users across hospitals (takes any tenant id), so it is a platform-admin tool:
+ * hospital admins manage their own people through Staff and Patients instead.
+ */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -19,26 +23,26 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("@platformAccess.isPlatformAdmin(authentication)")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse createUser(@RequestBody CreateUserRequest request) {
+    public UserResponse createUser(@jakarta.validation.Valid @RequestBody CreateUserRequest request) {
         return userService.createUser(request);
     }
 
     @GetMapping("/tenant/{tenantId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("@platformAccess.isPlatformAdmin(authentication)")
     public List<UserResponse> listUsersByTenant(@PathVariable UUID tenantId) {
         return userService.listUsersByTenant(tenantId);
     }
 
     @GetMapping("/{userId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER', 'PHYSICIAN')")
+    @PreAuthorize("@platformAccess.isPlatformAdmin(authentication)")
     public UserResponse getUserDetails(@PathVariable UUID userId) {
         return userService.getUserDetails(userId);
     }
 
     @DeleteMapping("/{userId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("@platformAccess.isPlatformAdmin(authentication)")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void disableUser(@PathVariable UUID userId) {
         userService.disableUser(userId);

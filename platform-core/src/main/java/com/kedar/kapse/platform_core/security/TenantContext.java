@@ -43,4 +43,19 @@ public final class TenantContext {
     public static void clear() {
         CURRENT_TENANT.remove();
     }
+
+    /**
+     * Run code as a given hospital, e.g. background jobs or startup data that must be
+     * saved for that hospital. The previous tenant is restored afterwards.
+     */
+    public static void runAs(String tenantId, Runnable work) {
+        String previous = CURRENT_TENANT.get();
+        CURRENT_TENANT.set(tenantId);
+        try {
+            work.run();
+        } finally {
+            if (previous == null) CURRENT_TENANT.remove();
+            else CURRENT_TENANT.set(previous);
+        }
+    }
 }
