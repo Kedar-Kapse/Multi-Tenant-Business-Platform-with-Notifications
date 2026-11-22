@@ -1,76 +1,38 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import { Navigate } from 'react-router-dom';
+import { FiX } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
-import { TENANT_ID, API_BASE_URL } from '../../runtimeConfig';
 
-const GATEWAY = API_BASE_URL;
-const DEFAULT_TENANT = TENANT_ID;
-
+/**
+ * Landing page when switching here from another portal. The one-time code in the
+ * URL is exchanged during start-up (authStore.init), which hands the tokens to
+ * keycloak-js; this page only shows the outcome.
+ */
 export default function PortalEntryPage() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const refreshUser = useAuthStore((s) => s.refreshUser);
-  const [error, setError] = useState(null);
+  const user = useAuthStore((s) => s.user);
+  const deniedUser = useAuthStore((s) => s.deniedUser);
+  const switchError = useAuthStore((s) => s.switchError);
+  const error = useAuthStore((s) => s.error);
 
-  useEffect(() => {
-    const code = searchParams.get('code');
-    if (!code) {
-      setError('No switch code provided');
-      return;
-    }
+  if (user) return <Navigate to="/" replace />;
+  if (deniedUser) return <Navigate to="/login" replace />;
 
-    const exchangeCode = async () => {
-      try {
-        const res = await axios.post(
-          `${GATEWAY}/access-security/api/auth/portal-switch/exchange`,
-          { code },
-          { headers: { 'Content-Type': 'application/json', 'X-TENANT-ID': DEFAULT_TENANT } }
-        );
-
-        const data = res.data;
-        if (data.access_token) {
-          localStorage.setItem('provider_access_token', data.access_token);
-          localStorage.setItem('provider_refresh_token', data.refresh_token);
-          refreshUser();
-          navigate('/', { replace: true });
-        } else {
-          setError('Invalid response from server');
-        }
-      } catch (err) {
-        const msg = err.response?.data?.message || 'Failed to authenticate. The switch code may have expired.';
-        setError(msg);
-      }
-    };
-
-    exchangeCode();
-  }, [searchParams, navigate, refreshUser]);
-
-  if (error) {
+  const message = switchError || error;
+  if (message) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+      <div className="min-h-screen flex items-center justify-center bg-secondary-50 dark:bg-secondary-950 p-4">
+        <div className="max-w-md w-full bg-white dark:bg-secondary-900 rounded-2xl shadow-lg p-6 sm:p-8 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-urgent-100 dark:bg-urgent-900/30 flex items-center justify-center">
+            <FiX className="text-urgent-600" size={22} />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Portal Switch Failed</h2>
-          <p className="text-sm text-gray-600 mb-6">{error}</p>
-          <a href="/login" className="inline-block px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
-            Go to Login
+          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-2">Portal switch failed</h2>
+          <p className="text-sm text-secondary-500 mb-6">{message}</p>
+          <a href="/login" className="inline-block px-6 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+            Go to login
           </a>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="w-10 h-10 mx-auto mb-4 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-gray-600">Switching portal, please wait...</p>
-      </div>
-    </div>
-  );
+  return <Navigate to="/login" replace />;
 }

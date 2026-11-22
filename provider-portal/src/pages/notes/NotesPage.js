@@ -1,218 +1,354 @@
-import { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiSearch, FiPlus, FiEye, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
-import Card, { CardHeader } from '../../components/ui/Card';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { FiFileText, FiSearch, FiPlus, FiEdit2, FiTrash2, FiX, FiCheckCircle, FiLock } from 'react-icons/fi';
+import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { ehrApi } from '../../services/providerService';
+import Select from '../../components/ui/Select';
+import Tabs from '../../components/ui/Tabs';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import EmptyState from '../../components/ui/EmptyState';
+import { toast } from '../../components/ui/Toast';
+import { ErrorState, Field, LoadingState, PageHeader, Pagination, Spinner } from '../../components/ui/States';
+import PatientPicker from '../../components/PatientPicker';
+import CodeSearch from '../../components/CodeSearch';
+import { ehrApi, notesApi } from '../../services/providerService';
 import useAuthStore from '../../store/authStore';
+import useDebounce from '../../hooks/useDebounce';
+import { errorMessage } from '../../utils/errors';
+import { formatDateTime } from '../../utils/format';
+import { btnDanger, btnGhost, btnPrimary, btnSecondary, inputClass } from '../../utils/styles';
 
-const inputClass = 'w-full px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500 text-secondary-900 dark:text-white';
+const PAGE_SIZE = 10;
+const emptyForm = { patient: null, templateId: '', title: '', content: '', icdCodes: '', cptCodes: '' };
+const STATUS_BADGE = { DRAFT: 'warning', SIGNED: 'success' };
+const statusLabel = (s) => (s === 'SIGNED' ? 'Signed' : 'Draft');
 
 export default function NotesPage() {
-  const { user } = useAuthStore();
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const sub = useAuthStore((s) => s.user?.sub);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [params, setParams] = useState({ status: '', query: '', page: 0 });
   const [search, setSearch] = useState('');
-  const [notes, setNotes] = useState([]);
-  const [modalOpen, setModalOpen] = useState(false);
+  const debounced = useDebounce(search.trim(), 350);
+  const [result, setResult] = useState({ content: [], totalPages: 0, totalElements: 0 });
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const reqId = useRef(0);
+
+  const [templates, setTemplates] = useState([]);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editing, setEditing] = useState(null); // note being edited, or null for new
+  const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
   const [viewNote, setViewNote] = useState(null);
-  const [form, setForm] = useState({ patient: '', template: '', content: '', icdCode: '', cptCode: '' });
-  const [toast, setToast] = useState(null);
-  const [icdSuggestions, setIcdSuggestions] = useState([]);
-  const [cptSuggestions, setCptSuggestions] = useState([]);
+  const [confirm, setConfirm] = useState(null); // { kind: 'sign'|'delete', note }
+  const [acting, setActing] = useState(false);
 
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  useEffect(() => {
+    setParams((p) => (p.query === debounced ? p : { ...p, query: debounced, page: 0 }));
+  }, [debounced]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const tmpl = await ehrApi.getTemplates();
-      setTemplates(Array.isArray(tmpl) ? tmpl : []);
-    } catch { setTemplates([]); }
-    finally { setLoading(false); }
+  const loadSummary = useCallback(() => {
+    notesApi.summary().then(setSummary).catch(() => {});
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Generate clinical notes from templates
-  useEffect(() => {
-    if (templates.length > 0 && notes.length === 0) {
-      const patients = ['Rahul Sharma', 'Sneha Kulkarni', 'Vikram Singh', 'Priya Chopra', 'Amit Patel'];
-      const generated = templates.filter(t => t.active).slice(0, 8).map((t, i) => ({
-        id: `note-${i}`,
-        patient: patients[i % patients.length],
-        template: t.name,
-        category: t.category,
-        content: `Clinical note using ${t.name} template. ${t.description || ''}`,
-        author: user?.fullName || user?.username || 'Provider',
-        createdAt: new Date(Date.now() - i * 86400000 * 2).toISOString(),
-        status: i < 3 ? 'Draft' : 'Signed',
-      }));
-      setNotes(generated);
+  const load = useCallback(async () => {
+    const my = ++reqId.current;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await notesApi.list({ page: params.page, size: PAGE_SIZE, status: params.status || undefined, query: params.query || undefined, mine: true });
+      if (my !== reqId.current) return;
+      setResult({ content: data?.content || [], totalPages: data?.totalPages || 0, totalElements: data?.totalElements || 0 });
+    } catch (err) {
+      if (my === reqId.current) setLoadError(errorMessage(err, 'Could not load your notes.'));
+    } finally {
+      if (my === reqId.current) setLoading(false);
     }
-  }, [templates]); // eslint-disable-line
+  }, [params]);
 
-  const searchIcd = async (q) => {
-    if (q.length < 2) { setIcdSuggestions([]); return; }
-    try { setIcdSuggestions(await ehrApi.searchIcd(q)); } catch { setIcdSuggestions([]); }
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+  useEffect(() => {
+    ehrApi.getTemplates().then((t) => setTemplates(Array.isArray(t) ? t.filter((x) => x.active !== false) : [])).catch(() => setTemplates([]));
+  }, []);
+
+  const refreshAll = () => { load(); loadSummary(); };
+
+  const set = (k, v) => {
+    setForm((p) => ({ ...p, [k]: v }));
+    setErrors((p) => (p[k] ? { ...p, [k]: undefined } : p));
   };
 
-  const searchCpt = async (q) => {
-    if (q.length < 2) { setCptSuggestions([]); return; }
-    try { setCptSuggestions(await ehrApi.searchCpt(q)); } catch { setCptSuggestions([]); }
+  const openCreate = useCallback((patient = null) => {
+    setEditing(null);
+    setForm({ ...emptyForm, patient });
+    setErrors({});
+    setEditorOpen(true);
+  }, []);
+
+  const openEdit = (note) => {
+    setViewNote(null);
+    setEditing(note);
+    setForm({
+      patient: null,
+      templateId: note.templateId || '',
+      title: note.title || '',
+      content: note.content || '',
+      icdCodes: note.icdCodes || '',
+      cptCodes: note.cptCodes || '',
+    });
+    setErrors({});
+    setEditorOpen(true);
   };
 
-  const filtered = notes.filter(n => {
-    const q = search.toLowerCase();
-    return !q || [n.patient, n.template, n.content, n.category].some(f => f?.toLowerCase().includes(q));
-  });
+  // "Write note" from the patient page.
+  useEffect(() => {
+    const p = location.state?.newNoteFor;
+    if (p) {
+      openCreate(p);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openCreate = () => {
-    setForm({ patient: '', template: templates[0]?.name || '', content: '', icdCode: '', cptCode: '' });
-    setModalOpen(true);
+  const pickTemplate = (id) => {
+    const t = templates.find((x) => String(x.id) === String(id));
+    setForm((p) => ({ ...p, templateId: id, title: p.title.trim() ? p.title : (t?.name || '') }));
   };
 
-  const handleSave = () => {
-    if (!form.patient.trim() || !form.content.trim()) { showToast('Patient and content are required', 'error'); return; }
-    const tmpl = templates.find(t => t.name === form.template);
-    setNotes(prev => [{
-      id: `note-new-${Date.now()}`,
-      patient: form.patient,
-      template: form.template,
-      category: tmpl?.category || 'General',
-      content: form.content,
-      icdCode: form.icdCode,
-      cptCode: form.cptCode,
-      author: user?.fullName || 'Provider',
-      createdAt: new Date().toISOString(),
-      status: 'Draft',
-    }, ...prev]);
-    setModalOpen(false);
-    showToast('Note created');
+  const validate = () => {
+    const e = {};
+    if (!editing && !form.patient) e.patient = 'Choose a patient';
+    if (!form.title.trim()) e.title = 'Title is required';
+    else if (form.title.trim().length > 200) e.title = 'Keep the title under 200 characters';
+    if (!form.content.trim()) e.content = 'Write the note';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const signNote = (id) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, status: 'Signed' } : n));
-    showToast('Note signed');
+  const handleSave = async () => {
+    if (saving || !validate()) return;
+    setSaving(true);
+    const t = templates.find((x) => String(x.id) === String(form.templateId));
+    const body = {
+      title: form.title.trim(),
+      content: form.content.trim(),
+      icdCodes: form.icdCodes,
+      cptCodes: form.cptCodes,
+      ...(form.templateId ? { templateId: form.templateId, templateName: t?.name || editing?.templateName } : {}),
+    };
+    try {
+      if (editing) {
+        await notesApi.update(editing.id, body);
+        toast.success('Draft saved');
+      } else {
+        await notesApi.create({ ...body, patientId: form.patient.id });
+        toast.success('Note saved as a draft');
+      }
+      setEditorOpen(false);
+      refreshAll();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not save the note.'));
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const runConfirm = async () => {
+    if (!confirm || acting) return;
+    setActing(true);
+    try {
+      if (confirm.kind === 'sign') {
+        const signed = await notesApi.sign(confirm.note.id);
+        toast.success('Note signed. It can no longer be edited.');
+        setViewNote((v) => (v?.id === confirm.note.id ? signed : v));
+      } else {
+        await notesApi.remove(confirm.note.id);
+        toast.success('Draft deleted');
+        setViewNote(null);
+      }
+      setConfirm(null);
+      refreshAll();
+    } catch (err) {
+      toast.error(errorMessage(err, confirm.kind === 'sign' ? 'Could not sign the note.' : 'Could not delete the note.'));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const canEdit = (n) => n?.status === 'DRAFT' && n?.providerId === sub;
+  const templateOptions = [{ value: '', label: 'No template' }, ...templates.map((t) => ({ value: t.id, label: t.category ? `${t.name} (${t.category})` : t.name }))];
+  const hasFilters = !!(params.query || params.status);
 
   return (
     <div className="space-y-4">
-      {toast && (<div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'}`}>{toast.msg}<button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button></div>)}
+      <PageHeader
+        title="Clinical Notes"
+        subtitle="Your encounter notes. Drafts can be edited until you sign them."
+        actions={<button type="button" onClick={() => openCreate()} className={`${btnPrimary} w-full sm:w-auto`}><FiPlus size={16} /> New note</button>}
+      />
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-secondary-900 dark:text-white">Clinical Notes</h1>
-          <p className="text-xs sm:text-sm text-secondary-500 mt-0.5">Document patient encounters using EHR templates.</p>
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+        <Tabs
+          tabs={[
+            { key: '', label: 'All', count: summary ? summary.drafts + summary.signed : undefined },
+            { key: 'DRAFT', label: 'Drafts', count: summary?.drafts },
+            { key: 'SIGNED', label: 'Signed', count: summary?.signed },
+          ]}
+          activeKey={params.status}
+          onChange={(k) => setParams((p) => ({ ...p, status: k, page: 0 }))}
+        />
+        <div className="relative flex-1 md:max-w-sm">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400" size={14} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, text or patient…" aria-label="Search notes" className={`${inputClass} pl-9 pr-8`} />
+          {search && <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-secondary-400 hover:text-secondary-600"><FiX size={13} /></button>}
         </div>
-        <button onClick={openCreate} className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition w-full sm:w-auto">
-          <FiPlus size={16} /> New Note
-        </button>
       </div>
 
-      <div className="relative max-w-sm">
-        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400" size={14} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search notes..." className="w-full pl-9 pr-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
-      </div>
-
-      {/* Notes List */}
-      <div className="space-y-3">
-        {loading ? <div className="p-12 text-center text-secondary-400">Loading...</div>
-        : filtered.length === 0 ? <Card><div className="p-12 text-center text-secondary-400"><FiFileText size={24} className="mx-auto mb-2 opacity-50" /><p className="text-sm">No notes found.</p></div></Card>
-        : filtered.map(n => (
-          <Card key={n.id}>
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-semibold text-secondary-900 dark:text-white">{n.patient}</h3>
-                  <Badge variant={n.status === 'Signed' ? 'success' : 'warning'} dot>{n.status}</Badge>
-                  <Badge variant="gray">{n.category}</Badge>
-                </div>
-                <p className="text-xs text-secondary-500">Template: {n.template}</p>
-                <p className="text-xs text-secondary-400 mt-1 line-clamp-2">{n.content}</p>
-                <div className="flex items-center gap-3 mt-2 text-[10px] text-secondary-400">
-                  <span>By {n.author}</span>
-                  <span>{new Date(n.createdAt).toLocaleDateString()}</span>
-                  {n.icdCode && <span>ICD: {n.icdCode}</span>}
-                  {n.cptCode && <span>CPT: {n.cptCode}</span>}
-                </div>
+      <Card>
+        {loadError ? <ErrorState title="Could not load your notes" message={loadError} onRetry={load} />
+          : loading && result.content.length === 0 ? <LoadingState />
+            : result.content.length === 0 ? (
+              <EmptyState
+                icon={FiFileText}
+                title={hasFilters ? 'No notes match' : 'No clinical notes yet'}
+                description={hasFilters ? 'Try another search or tab.' : 'Document an encounter to create your first note.'}
+                action={!hasFilters && <button type="button" onClick={() => openCreate()} className={btnPrimary}><FiPlus size={14} /> New note</button>}
+              />
+            ) : (
+              <div className={`divide-y divide-secondary-100 dark:divide-secondary-800 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+                {result.content.map((n) => (
+                  <div key={n.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-secondary-50/60 dark:hover:bg-secondary-800/30 transition">
+                    <button type="button" onClick={() => setViewNote(n)} className="flex-1 min-w-0 text-left">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="text-sm font-semibold text-secondary-900 dark:text-white truncate max-w-full">{n.title}</h3>
+                        <Badge variant={STATUS_BADGE[n.status] || 'gray'} dot>{statusLabel(n.status)}</Badge>
+                        {n.templateName && <Badge variant="gray">{n.templateName}</Badge>}
+                      </div>
+                      <p className="text-xs text-secondary-600 dark:text-secondary-300 font-medium truncate">{n.patientName}</p>
+                      <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1 line-clamp-2 break-words">{n.content}</p>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-secondary-400">
+                        <span>{n.status === 'SIGNED' ? `Signed ${formatDateTime(n.signedAt)}` : `Updated ${formatDateTime(n.updatedAt || n.createdAt)}`}</span>
+                        {n.icdCodes && <span className="font-mono">ICD {n.icdCodes}</span>}
+                        {n.cptCodes && <span className="font-mono">CPT {n.cptCodes}</span>}
+                      </div>
+                    </button>
+                    {canEdit(n) && (
+                      <div className="flex items-center gap-1 flex-shrink-0 self-end sm:self-center">
+                        <button type="button" onClick={() => openEdit(n)} aria-label="Edit draft" className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-500 hover:text-primary-600 transition"><FiEdit2 size={14} /></button>
+                        <button type="button" onClick={() => setConfirm({ kind: 'delete', note: n })} aria-label="Delete draft" className="p-2 rounded-lg hover:bg-urgent-50 dark:hover:bg-urgent-900/20 text-secondary-500 hover:text-urgent-600 transition"><FiTrash2 size={14} /></button>
+                        <button type="button" onClick={() => setConfirm({ kind: 'sign', note: n })} className="px-3 py-1.5 rounded-lg text-xs bg-primary-600 hover:bg-primary-700 text-white font-medium transition">Sign</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => setViewNote(n)} className="p-1.5 rounded-lg hover:bg-secondary-100 text-secondary-500 hover:text-primary-600 transition"><FiEye size={14} /></button>
-                {n.status === 'Draft' && <button onClick={() => signNote(n.id)} className="px-3 py-1.5 rounded-lg text-xs bg-primary-600 hover:bg-primary-700 text-white font-medium transition">Sign</button>}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            )}
+        <Pagination page={params.page} totalPages={result.totalPages} totalElements={result.totalElements} disabled={loading}
+          onChange={(page) => setParams((p) => ({ ...p, page }))} />
+      </Card>
 
-      {/* Create Note Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Clinical Note" size="lg">
+      {/* Create / edit draft */}
+      <Modal
+        open={editorOpen}
+        onClose={() => !saving && setEditorOpen(false)}
+        title={editing ? 'Edit draft' : 'New clinical note'}
+        size="lg"
+        footer={(
+          <>
+            <button type="button" onClick={() => setEditorOpen(false)} disabled={saving} className={btnGhost}>Cancel</button>
+            <button type="button" onClick={handleSave} disabled={saving} className={btnPrimary}>
+              {saving ? <><Spinner size="sm" className="border-white border-t-transparent" /> Saving…</> : 'Save draft'}
+            </button>
+          </>
+        )}
+      >
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Patient *</label>
-              <input value={form.patient} onChange={e => set('patient', e.target.value)} className={inputClass} placeholder="Patient name" /></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Template</label>
-              <select value={form.template} onChange={e => set('template', e.target.value)} className={inputClass}>
-                {templates.filter(t => t.active).map(t => <option key={t.id} value={t.name}>{t.name} ({t.category})</option>)}
-              </select></div>
-            <div className="relative">
-              <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">ICD-10 Code</label>
-              <input value={form.icdCode} onChange={e => { set('icdCode', e.target.value); searchIcd(e.target.value); }} className={inputClass} placeholder="Search ICD codes..." />
-              {icdSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-secondary-800 border rounded-lg shadow-lg z-20 max-h-40 overflow-y-auto">
-                  {icdSuggestions.map(s => (
-                    <button key={s.id} onClick={() => { set('icdCode', s.code); setIcdSuggestions([]); }} className="w-full text-left px-3 py-2 text-xs hover:bg-secondary-50 dark:hover:bg-secondary-700">
-                      <span className="font-mono font-bold text-primary-600">{s.code}</span> — {s.description}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="relative">
-              <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">CPT Code</label>
-              <input value={form.cptCode} onChange={e => { set('cptCode', e.target.value); searchCpt(e.target.value); }} className={inputClass} placeholder="Search CPT codes..." />
-              {cptSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-secondary-800 border rounded-lg shadow-lg z-20 max-h-40 overflow-y-auto">
-                  {cptSuggestions.map(s => (
-                    <button key={s.id} onClick={() => { set('cptCode', s.code); setCptSuggestions([]); }} className="w-full text-left px-3 py-2 text-xs hover:bg-secondary-50 dark:hover:bg-secondary-700">
-                      <span className="font-mono font-bold text-primary-600">{s.code}</span> — {s.description}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {editing ? (
+              <Field label="Patient"><p className="px-3 py-2 rounded-lg bg-secondary-50 dark:bg-secondary-800 text-sm text-secondary-900 dark:text-white truncate">{editing.patientName}</p></Field>
+            ) : (
+              <Field label="Patient" required error={errors.patient}>
+                <PatientPicker value={form.patient} onChange={(p) => set('patient', p)} error={errors.patient} />
+              </Field>
+            )}
+            <Field label="Template">
+              <Select name="templateId" value={form.templateId} onChange={(e) => pickTemplate(e.target.value)} options={templateOptions} searchable={templates.length > 8} />
+            </Field>
           </div>
-          <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Clinical Notes *</label>
-            <textarea value={form.content} onChange={e => set('content', e.target.value)} className={inputClass + ' h-40 resize-none'} placeholder="Enter clinical documentation..." /></div>
-        </div>
-        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-secondary-100 dark:border-secondary-700">
-          <button onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-lg text-sm text-secondary-600 hover:bg-secondary-100 transition">Cancel</button>
-          <button onClick={handleSave} className="px-5 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition">Save Note</button>
+          <Field label="Title" required error={errors.title}>
+            <input value={form.title} onChange={(e) => set('title', e.target.value)} maxLength={200} className={inputClass} placeholder="e.g. Follow-up visit" />
+          </Field>
+          <Field label="Note" required error={errors.content}>
+            <textarea value={form.content} onChange={(e) => set('content', e.target.value)} className={`${inputClass} h-40 sm:h-48 resize-y`} placeholder="Subjective, objective, assessment, plan…" />
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="ICD-10 diagnoses">
+              <CodeSearch kind="icd" multiple value={form.icdCodes} onChange={(v) => set('icdCodes', v)} />
+            </Field>
+            <Field label="CPT procedures">
+              <CodeSearch kind="cpt" multiple value={form.cptCodes} onChange={(v) => set('cptCodes', v)} />
+            </Field>
+          </div>
         </div>
       </Modal>
 
-      {/* View Note Modal */}
-      <Modal open={!!viewNote} onClose={() => setViewNote(null)} title="Clinical Note" size="lg">
+      {/* Read a note */}
+      <Modal
+        open={!!viewNote}
+        onClose={() => setViewNote(null)}
+        title="Clinical note"
+        size="lg"
+        footer={viewNote && canEdit(viewNote) ? (
+          <>
+            <button type="button" onClick={() => setConfirm({ kind: 'delete', note: viewNote })} className={`${btnDanger} sm:mr-auto`}><FiTrash2 size={14} /> Delete</button>
+            <button type="button" onClick={() => openEdit(viewNote)} className={btnSecondary}><FiEdit2 size={14} /> Edit</button>
+            <button type="button" onClick={() => setConfirm({ kind: 'sign', note: viewNote })} className={btnPrimary}><FiCheckCircle size={14} /> Sign</button>
+          </>
+        ) : null}
+      >
         {viewNote && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <h3 className="text-lg font-semibold text-secondary-900 dark:text-white">{viewNote.patient}</h3>
-              <Badge variant={viewNote.status === 'Signed' ? 'success' : 'warning'} dot>{viewNote.status}</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-semibold text-secondary-900 dark:text-white break-words">{viewNote.title}</h3>
+              <Badge variant={STATUS_BADGE[viewNote.status] || 'gray'} dot>{statusLabel(viewNote.status)}</Badge>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-xs text-secondary-400">Template</span><p className="font-medium">{viewNote.template}</p></div>
-              <div><span className="text-xs text-secondary-400">Category</span><p className="font-medium">{viewNote.category}</p></div>
-              <div><span className="text-xs text-secondary-400">Author</span><p className="font-medium">{viewNote.author}</p></div>
-              <div><span className="text-xs text-secondary-400">Date</span><p className="font-medium">{new Date(viewNote.createdAt).toLocaleString()}</p></div>
-              {viewNote.icdCode && <div><span className="text-xs text-secondary-400">ICD-10</span><p className="font-mono font-medium">{viewNote.icdCode}</p></div>}
-              {viewNote.cptCode && <div><span className="text-xs text-secondary-400">CPT</span><p className="font-mono font-medium">{viewNote.cptCode}</p></div>}
+              <div className="min-w-0"><span className="text-xs text-secondary-400">Patient</span><p className="font-medium text-secondary-900 dark:text-white truncate">{viewNote.patientName}</p></div>
+              <div className="min-w-0"><span className="text-xs text-secondary-400">Author</span><p className="font-medium text-secondary-900 dark:text-white truncate">{viewNote.providerName}</p></div>
+              <div><span className="text-xs text-secondary-400">Created</span><p className="font-medium text-secondary-900 dark:text-white">{formatDateTime(viewNote.createdAt)}</p></div>
+              {viewNote.signedAt && <div><span className="text-xs text-secondary-400">Signed</span><p className="font-medium text-secondary-900 dark:text-white">{formatDateTime(viewNote.signedAt)}</p></div>}
+              {viewNote.templateName && <div className="min-w-0"><span className="text-xs text-secondary-400">Template</span><p className="font-medium text-secondary-900 dark:text-white truncate">{viewNote.templateName}</p></div>}
+              {viewNote.icdCodes && <div><span className="text-xs text-secondary-400">ICD-10</span><p className="font-mono font-medium text-secondary-900 dark:text-white break-words">{viewNote.icdCodes}</p></div>}
+              {viewNote.cptCodes && <div><span className="text-xs text-secondary-400">CPT</span><p className="font-mono font-medium text-secondary-900 dark:text-white break-words">{viewNote.cptCodes}</p></div>}
             </div>
-            <div className="p-4 bg-secondary-50 dark:bg-secondary-800 rounded-xl"><p className="text-sm text-secondary-700 dark:text-secondary-300 whitespace-pre-wrap">{viewNote.content}</p></div>
+            <div className="p-4 bg-secondary-50 dark:bg-secondary-800 rounded-xl">
+              <p className="text-sm text-secondary-700 dark:text-secondary-200 whitespace-pre-wrap break-words">{viewNote.content}</p>
+            </div>
+            {viewNote.status === 'SIGNED' && (
+              <p className="text-xs text-secondary-400 flex items-center gap-1.5"><FiLock size={12} /> Signed notes are final and cannot be changed.</p>
+            )}
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirm}
+        onClose={() => !acting && setConfirm(null)}
+        onConfirm={runConfirm}
+        loading={acting}
+        variant={confirm?.kind === 'sign' ? 'primary' : 'danger'}
+        title={confirm?.kind === 'sign' ? 'Sign this note?' : 'Delete this draft?'}
+        message={confirm?.kind === 'sign'
+          ? 'Signing makes the note final. It cannot be edited or deleted afterwards.'
+          : `“${confirm?.note?.title || ''}” will be permanently deleted.`}
+        confirmLabel={confirm?.kind === 'sign' ? 'Sign note' : 'Delete draft'}
+      />
     </div>
   );
 }

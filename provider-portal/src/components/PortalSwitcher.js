@@ -73,7 +73,7 @@ export default function PortalSwitcher({ userRoles }) {
     <div className="relative" ref={ref}>
       <button
         onClick={handleToggle}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors border border-indigo-200 dark:border-indigo-800"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors border border-primary-200 dark:border-primary-800"
         title="Switch Portal"
       >
         <FiGrid size={14} />
@@ -90,7 +90,7 @@ export default function PortalSwitcher({ userRoles }) {
 
           {loading && (
             <div className="flex items-center justify-center gap-2 px-4 py-6">
-              <FiLoader size={14} className="animate-spin text-indigo-500" />
+              <FiLoader size={14} className="animate-spin text-primary-500" />
               <span className="text-xs text-secondary-500">Loading portals...</span>
             </div>
           )}
@@ -99,7 +99,7 @@ export default function PortalSwitcher({ userRoles }) {
             <div className="px-4 py-4 text-center">
               <FiAlertCircle size={20} className="mx-auto text-urgent-400 mb-2" />
               <p className="text-[11px] text-secondary-500 mb-3">{error}</p>
-              <button onClick={fetchPortals} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors">
+              <button onClick={fetchPortals} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 dark:bg-primary-900/20 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
                 <FiRefreshCw size={12} /> Retry
               </button>
             </div>
@@ -112,12 +112,12 @@ export default function PortalSwitcher({ userRoles }) {
                 const isLoading = switching === portal.key;
                 return (
                   <button key={portal.key} onClick={() => handleSwitch(portal.key)} disabled={isLoading}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${isCurrent ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 cursor-default' : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-700'}`}>
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${isCurrent ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 cursor-default' : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-700'}`}>
                     <div className="flex items-center gap-2.5">
-                      <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-indigo-500' : 'bg-secondary-300 dark:bg-secondary-600'}`} />
+                      <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-primary-500' : 'bg-secondary-300 dark:bg-secondary-600'}`} />
                       <span className="font-medium text-xs">{portal.name}</span>
                     </div>
-                    {isCurrent ? <span className="text-[10px] text-indigo-500 font-medium">Current</span>
+                    {isCurrent ? <span className="text-[10px] text-primary-500 font-medium">Current</span>
                       : isLoading ? <FiLoader size={12} className="animate-spin text-secondary-400" />
                       : <FiExternalLink size={12} className="text-secondary-400" />}
                   </button>
