@@ -51,6 +51,20 @@ KEYCLOAK_ADMIN_PASSWORD=<strong password>
 5. Check: **EC2 → instance → Connect → Session Manager → Connect** opens a terminal.
    Once that works, delete the port 22 rule from the security group — SSH is no longer needed.
 
+## Secrets: never the ones from the repo
+
+The repo is public, so the test users (`admin-a/admin123`, ...), the `platform-backend`
+client secrets and the Keycloak admin password (`admin`) are known to everyone.
+After the first deploy, and whenever a secret may have leaked, run on the server:
+
+```
+cd ~/app && bash scripts/rotate-secrets.sh
+```
+
+It sets new random passwords (test users must choose their own at first login),
+regenerates the client secrets, updates `.env`, restarts the services that use them,
+and writes the new values only to `~/credentials.txt` (mode 600). Nothing is printed.
+
 ## Everyday use
 
 - **Deploy:** push to `main`. Watch it in the repo's **Actions** tab.
