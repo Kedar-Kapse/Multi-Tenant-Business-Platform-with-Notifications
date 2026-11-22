@@ -4,10 +4,10 @@ import useNotificationStore from '../../store/notificationStore';
 import useAuthStore from '../../store/authStore';
 import { useEffect } from 'react';
 import {
-  FiGrid, FiUsers, FiUserPlus, FiFileText, FiPackage,
+  FiGrid, FiUsers, FiFileText, FiPackage,
   FiDollarSign, FiCreditCard, FiList, FiLock,
   FiSettings, FiChevronLeft, FiActivity, FiBell,
-  FiKey, FiMonitor, FiMessageSquare,
+  FiKey, FiMonitor, FiMessageSquare, FiHome,
 } from 'react-icons/fi';
 
 const sections = [
@@ -47,7 +47,7 @@ const sections = [
 const platformSections = [
   {
     title: 'PLATFORM',
-    items: [{ label: 'Hospitals (Tenants)', icon: FiUserPlus, path: '/tenants' }],
+    items: [{ label: 'Hospitals (Tenants)', icon: FiHome, path: '/tenants' }],
   },
 ];
 

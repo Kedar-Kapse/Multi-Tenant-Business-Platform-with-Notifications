@@ -1,12 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiGrid, FiAlertTriangle, FiRefreshCw, FiCheckCircle } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiGrid, FiAlertTriangle, FiRefreshCw, FiCheckCircle, FiCopy } from 'react-icons/fi';
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { tenantApi } from '../../../services/organizationService';
 import { toast } from '../../../components/ui/Toast';
 
-const createForm = { name: '', tenantCode: '' };
+const createForm = { name: '', tenantCode: '', adminUsername: '', adminEmail: '' };
+
+// Same rule as the server: the hospital name becomes its address (Keycloak realm).
+const toRealm = (name) => name.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-');
+// e.g. on platform.admin.kapse.online -> sunrise-hospital.admin.kapse.online
+const isLocalHost = /^(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)$/.test(window.location.hostname);
+const adminAddressFor = (realm) => (isLocalHost || !realm ? null
+  : `${window.location.protocol}//${window.location.host.replace(/^[^.]+/, realm)}`);
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState([]);
@@ -18,6 +25,9 @@ export default function TenantsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formError, setFormError] = useState('');
+  // Login details of a just-created hospital's first admin -- shown once, never stored.
+  const [created, setCreated] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +83,14 @@ export default function TenantsPage() {
       setFormError('Tenant code must be alphanumeric (no spaces or special characters).');
       return;
     }
+    if (!editing && !/^[A-Za-z0-9._-]{3,50}$/.test(form.adminUsername.trim())) {
+      setFormError('Admin username: 3–50 letters, digits, dots, dashes or underscores.');
+      return;
+    }
+    if (!editing && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.adminEmail.trim())) {
+      setFormError('Please enter a valid admin email.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -80,8 +98,15 @@ export default function TenantsPage() {
         await tenantApi.update(editing.id, { name: form.name });
         toast.success(`Tenant "${form.name}" updated successfully`);
       } else {
-        await tenantApi.create({ name: form.name, tenantCode: form.tenantCode.toUpperCase() });
-        toast.success(`Tenant "${form.name}" created successfully`);
+        const res = await tenantApi.create({
+          name: form.name.trim(),
+          tenantCode: form.tenantCode.toUpperCase(),
+          adminUsername: form.adminUsername.trim(),
+          adminEmail: form.adminEmail.trim(),
+        });
+        toast.success(`Hospital "${form.name}" created`);
+        setCopied(false);
+        setCreated(res);
       }
       setModalOpen(false);
       load();
@@ -158,7 +183,14 @@ export default function TenantsPage() {
                 <tr><td colSpan={4} className="px-5 py-12 text-center text-secondary-400">Loading…</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={4} className="px-5 py-12 text-center text-secondary-400">
-                  {tenants.length === 0 ? 'No tenants yet. Click "Add Tenant" to create one.' : 'No tenants match your search.'}
+                  {tenants.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <p>No hospitals yet.</p>
+                      <button onClick={openCreate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition">
+                        <FiPlus size={16} /> Add your first hospital
+                      </button>
+                    </div>
+                  ) : 'No tenants match your search.'}
                 </td></tr>
               ) : filtered.map((t) => (
                 <tr key={t.id} className="hover:bg-secondary-50/50 dark:hover:bg-secondary-800/30 transition-colors">
@@ -223,6 +255,44 @@ export default function TenantsPage() {
             </div>
           )}
 
+          {!editing && adminAddressFor(toRealm(form.name)) && (
+            <p className="text-[11px] text-secondary-500 -mt-2">
+              Hospital address: <span className="font-mono text-secondary-700 dark:text-secondary-300 break-all">{adminAddressFor(toRealm(form.name))}</span>
+            </p>
+          )}
+
+          {!editing && (
+            <div className="pt-3 border-t border-secondary-100 dark:border-secondary-700 space-y-4">
+              <p className="text-xs font-semibold text-secondary-700 dark:text-secondary-300">Hospital admin <span className="font-normal text-secondary-400">— the first person who can sign in and manage this hospital</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Admin username <span className="text-urgent-500">*</span></label>
+                  <input
+                    value={form.adminUsername}
+                    onChange={(e) => setForm({ ...form, adminUsername: e.target.value.replace(/\s/g, '') })}
+                    placeholder="e.g. admin.sunrise"
+                    maxLength={50}
+                    autoComplete="off"
+                    className="w-full px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500 text-secondary-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Admin email <span className="text-urgent-500">*</span></label>
+                  <input
+                    type="email"
+                    value={form.adminEmail}
+                    onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
+                    placeholder="e.g. admin@sunrise.example"
+                    maxLength={100}
+                    autoComplete="off"
+                    className="w-full px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500 text-secondary-900 dark:text-white"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-secondary-400">A temporary password is created for them and shown to you once. They choose their own password at first sign-in.</p>
+            </div>
+          )}
+
           {editing && (
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800">
               <p className="text-[11px] text-secondary-500">Tenant Code: <span className="font-mono font-medium text-secondary-700 dark:text-secondary-300">{editing.tenantCode}</span></p>
@@ -236,6 +306,55 @@ export default function TenantsPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* First admin's login details: shown once */}
+      <Modal open={!!created} onClose={() => setCreated(null)} title="Hospital created" size="sm">
+        {created && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-success-100 dark:bg-success-700/30 flex items-center justify-center flex-shrink-0">
+                <FiCheckCircle className="text-success-600" size={18} />
+              </div>
+              <p className="text-sm text-secondary-700 dark:text-secondary-300">
+                <strong>{created.name}</strong> is ready. Give these sign-in details to the hospital admin.
+              </p>
+            </div>
+            <dl className="rounded-lg bg-secondary-50 dark:bg-secondary-900/60 border border-secondary-200 dark:border-secondary-700 divide-y divide-secondary-200 dark:divide-secondary-700 text-sm">
+              {created.adminLoginUrl && (
+                <div className="px-3 py-2">
+                  <dt className="text-[11px] text-secondary-500">Address</dt>
+                  <dd className="font-mono text-secondary-900 dark:text-white break-all">{created.adminLoginUrl}</dd>
+                </div>
+              )}
+              <div className="px-3 py-2">
+                <dt className="text-[11px] text-secondary-500">Username</dt>
+                <dd className="font-mono text-secondary-900 dark:text-white break-all">{created.adminUsername}</dd>
+              </div>
+              <div className="px-3 py-2 flex items-end justify-between gap-2">
+                <div className="min-w-0">
+                  <dt className="text-[11px] text-secondary-500">Temporary password</dt>
+                  <dd className="font-mono text-secondary-900 dark:text-white break-all">{created.adminTemporaryPassword}</dd>
+                </div>
+                <button
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(created.adminTemporaryPassword); setCopied(true); }
+                    catch { toast.error('Copy failed — please select and copy the password'); }
+                  }}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-secondary-200 dark:border-secondary-700 text-xs text-secondary-600 dark:text-secondary-300 hover:bg-white dark:hover:bg-secondary-800 transition"
+                >
+                  <FiCopy size={12} /> {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </dl>
+            <p className="text-xs text-warning-700 dark:text-warning-400 bg-warning-50 dark:bg-warning-700/20 border border-warning-200 dark:border-warning-700 rounded-lg p-2.5">
+              This password is shown only now. The admin must change it at first sign-in.
+            </p>
+            <div className="flex justify-end">
+              <button onClick={() => setCreated(null)} className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition">Done</button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete Confirmation */}

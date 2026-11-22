@@ -17,4 +17,11 @@ public final class SecretGenerator {
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
+
+    /** A first-login password (16 characters). The user must change it at first login. */
+    public static String newTemporaryPassword() {
+        byte[] bytes = new byte[12];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
 }

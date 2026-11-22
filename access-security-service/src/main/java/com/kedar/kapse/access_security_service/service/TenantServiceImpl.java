@@ -1,5 +1,6 @@
 package com.kedar.kapse.access_security_service.service;
 
+import com.kedar.kapse.access_security_service.config.PortalConfig;
 import com.kedar.kapse.platform_core.security.PlatformAccess;
 import com.kedar.kapse.platform_core.security.SecretGenerator;
 import com.kedar.kapse.access_security_service.entity.Tenant;
@@ -16,6 +17,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -29,6 +32,7 @@ public class TenantServiceImpl implements TenantService {
     private final KeycloakService keycloakService;
     private final PlatformAccess platformAccess;
     private final JdbcTemplate jdbcTemplate;
+    private final PortalConfig portalConfig;
 
     @Override
     public TenantResponse createTenant(CreateTenantRequest request) {
@@ -55,6 +59,13 @@ public class TenantServiceImpl implements TenantService {
         if (tenantRepository.existsByTenantCode(tenantCode)) {
             throw new IllegalArgumentException("Tenant with code '" + tenantCode + "' already exists");
         }
+        // The name decides the address, so two hospitals cannot share one.
+        if (keycloakService.realmExists(realmName)) {
+            throw new IllegalArgumentException("A hospital called '" + request.getName()
+                    + "' already exists. Please choose a different name.");
+        }
+        String adminUsername = request.getAdminUsername().trim().toLowerCase();
+        String adminPassword;
 
         // Step 2: Save tenant as PROVISIONING
         Tenant tenant = Tenant.builder()
@@ -77,9 +88,14 @@ public class TenantServiceImpl implements TenantService {
             log.info("Database schema '{}' created", schemaName);
 
             // Step 4: Create Keycloak realm with roles, clients, permissions
-            keycloakService.createTenantRealm(realmName, request.getName(), clientSecret);
+            keycloakService.createTenantRealm(realmName, request.getName(), clientSecret,
+                    portalOrigins(realmName));
             realmCreated = true;
             log.info("Keycloak realm '{}' created with roles, clients, and permissions", realmName);
+
+            // Step 4b: The hospital's first admin, with a one-time temporary password
+            adminPassword = keycloakService.createTenantAdmin(realmName, adminUsername,
+                    request.getAdminEmail().trim());
 
             // Step 5: Mark as ACTIVE
             tenant.setStatus(TenantStatus.ACTIVE);
@@ -117,7 +133,34 @@ public class TenantServiceImpl implements TenantService {
             throw new RuntimeException("Tenant onboarding failed: " + e.getMessage(), e);
         }
 
-        return ResponseMapper.toTenantResponse(tenant);
+        TenantResponse response = ResponseMapper.toTenantResponse(tenant);
+        response.setAdminUsername(adminUsername);
+        response.setAdminTemporaryPassword(adminPassword);   // shown once, never stored
+        response.setAdminLoginUrl(portalUrl("admin", realmName));
+        return response;
+    }
+
+    /**
+     * The hospital's portal addresses, from the portal URL settings with "{tenant}"
+     * replaced by the hospital, e.g. https://{tenant}.admin.kapse.online ->
+     * https://sunrise-hospital.admin.kapse.online (locally: http://localhost:3000).
+     */
+    private List<String> portalOrigins(String realmName) {
+        List<String> origins = new ArrayList<>();
+        for (String key : portalConfig.getPortals().keySet()) {
+            String url = portalUrl(key, realmName);
+            if (url == null) continue;
+            URI uri = URI.create(url);
+            String origin = uri.getScheme() + "://" + uri.getAuthority();
+            if (!origins.contains(origin)) origins.add(origin);
+        }
+        return origins;
+    }
+
+    private String portalUrl(String portalKey, String realmName) {
+        PortalConfig.PortalEntry entry = portalConfig.getPortals().get(portalKey);
+        if (entry == null || entry.getUrl() == null || entry.getUrl().isBlank()) return null;
+        return entry.getUrl().replace("{tenant}", realmName);
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.kedar.kapse.access_security_service.service;
 
 import com.kedar.kapse.platform_core.dto.CreateUserRequest;
 import com.kedar.kapse.platform_core.enums.KeycloakRole;
+import com.kedar.kapse.platform_core.security.SecretGenerator;
 import com.kedar.kapse.platform_core.security.TenantContext;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Multi-tenant Keycloak administration service.
@@ -48,8 +50,17 @@ public class KeycloakService {
     /**
      * Creates a new tenant realm with default clients, roles, and permissions.
      * This is called when a new tenant (hospital/organization) is onboarded.
+     *
+     * @param portalOrigins the hospital's own portal addresses (e.g.
+     *        https://sunrise.admin.example.com) -- the only places Keycloak may send a
+     *        user back to after login. Without them nobody could sign in there.
      */
     public void createTenantRealm(String realmName, String displayName, String backendClientSecret) {
+        createTenantRealm(realmName, displayName, backendClientSecret, null);
+    }
+
+    public void createTenantRealm(String realmName, String displayName, String backendClientSecret,
+                                  List<String> portalOrigins) {
         log.info("Creating tenant realm: {}", realmName);
 
         RealmRepresentation realm = new RealmRepresentation();
@@ -60,6 +71,9 @@ public class KeycloakService {
         realm.setSslRequired("external");
         realm.setRegistrationAllowed(false);
         realm.setLoginWithEmailAllowed(true);
+        realm.setDuplicateEmailsAllowed(false);
+        realm.setResetPasswordAllowed(true);
+        realm.setLoginTheme("invision");          // same login page look as the other hospitals
         realm.setBruteForceProtected(true);
         realm.setAccessTokenLifespan(300);       // 5 minutes
         realm.setSsoSessionIdleTimeout(1800);    // 30 minutes
@@ -73,7 +87,7 @@ public class KeycloakService {
 
         // Create backend and frontend clients
         createBackendClient(realmName, backendClientSecret);
-        createFrontendClient(realmName);
+        createFrontendClient(realmName, portalOrigins);
 
         // Create default client permissions
         createClientPermissions(realmName);
@@ -99,6 +113,47 @@ public class KeycloakService {
         log.info("Deleting realm '{}'", realmName);
         keycloakAdmin.realm(realmName).remove();
         log.info("Realm '{}' deleted", realmName);
+    }
+
+    public boolean realmExists(String realmName) {
+        return keycloakAdmin.realms().findAll().stream()
+                .anyMatch(r -> realmName.equalsIgnoreCase(r.getRealm()));
+    }
+
+    /**
+     * Creates a hospital's first administrator: ADMIN role and a TEMPORARY password,
+     * so Keycloak makes them choose their own password at the first login.
+     * Returns the temporary password (it is not stored anywhere).
+     */
+    public String createTenantAdmin(String realm, String username, String email) {
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setEnabled(true);
+        user.setEmailVerified(true);
+        user.setRequiredActions(List.of("UPDATE_PASSWORD"));
+
+        RealmResource realmResource = keycloakAdmin.realm(realm);
+        String userId;
+        try (Response response = realmResource.users().create(user)) {
+            if (response.getStatus() != 201) {
+                throw new RuntimeException("Could not create the hospital admin (Keycloak status "
+                        + response.getStatus() + ")");
+            }
+            String path = response.getLocation().getPath();
+            userId = path.substring(path.lastIndexOf('/') + 1);
+        }
+
+        String temporaryPassword = SecretGenerator.newTemporaryPassword();
+        CredentialRepresentation cred = new CredentialRepresentation();
+        cred.setTemporary(true);
+        cred.setType(CredentialRepresentation.PASSWORD);
+        cred.setValue(temporaryPassword);
+        realmResource.users().get(userId).resetPassword(cred);
+
+        assignRoleInRealm(realm, userId, KeycloakRole.ADMIN);
+        log.info("Created first admin '{}' for realm '{}'", username, realm);
+        return temporaryPassword;
     }
 
     /**
@@ -290,7 +345,7 @@ public class KeycloakService {
         }
     }
 
-    private void createFrontendClient(String realm) {
+    private void createFrontendClient(String realm, List<String> portalOrigins) {
         ClientRepresentation client = new ClientRepresentation();
         client.setClientId(FRONTEND_CLIENT_ID);
         client.setName("Platform Frontend Application");
@@ -298,8 +353,15 @@ public class KeycloakService {
         client.setPublicClient(true);
         client.setDirectAccessGrantsEnabled(true);
         client.setStandardFlowEnabled(true);
-        client.setRedirectUris(List.of("http://localhost:3000/*", "http://localhost:4200/*"));
-        client.setWebOrigins(List.of("http://localhost:3000", "http://localhost:4200"));
+        List<String> origins = portalOrigins == null || portalOrigins.isEmpty()
+                ? List.of("http://localhost:3000", "http://localhost:3001", "http://localhost:3002")
+                : portalOrigins;
+        client.setRedirectUris(origins.stream().map(o -> o + "/*").toList());
+        client.setWebOrigins(origins);
+        // Same as the other hospitals: PKCE for the browser login, and log-out may
+        // return to any of the addresses above ("+").
+        client.setAttributes(Map.of("pkce.code.challenge.method", "S256",
+                "post.logout.redirect.uris", "+"));
         client.setProtocol("openid-connect");
         client.setFullScopeAllowed(true);
 

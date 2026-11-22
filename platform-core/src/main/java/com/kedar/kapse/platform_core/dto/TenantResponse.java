@@ -23,4 +23,10 @@ public class TenantResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Only filled in the response to "create hospital", and never stored by us:
+    // the first admin's login details, shown once to the platform admin.
+    private String adminUsername;
+    private String adminTemporaryPassword;
+    private String adminLoginUrl;
+
 }
