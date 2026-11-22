@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import keycloak from '../keycloak';
+import { TENANT_ID, PLATFORM_TENANT } from '../runtimeConfig';
 
 const decodeUser = () => {
   if (!keycloak.tokenParsed) return null;
   const p = keycloak.tokenParsed;
+  const roles = p.realm_access?.roles || [];
   return {
     username: p.preferred_username,
     email: p.email,
-    roles: p.realm_access?.roles || [],
+    roles,
     sub: p.sub,
+    // Platform owner (manages hospitals), not a hospital user. Same rule as the API:
+    // "super-admin" counts only when signed in to the platform realm.
+    isPlatformAdmin: TENANT_ID === PLATFORM_TENANT && roles.includes('super-admin'),
   };
 };
 

@@ -1,22 +1,41 @@
+/** The hospital's currency and number/date locale (one place; default Indian rupees). */
+export const CURRENCY = process.env.REACT_APP_CURRENCY || 'INR';
+export const LOCALE = process.env.REACT_APP_LOCALE || 'en-IN';
+
 /** Currency formatter */
-export const formatCurrency = (value, currency = 'USD') => {
+export const formatCurrency = (value, currency = CURRENCY) => {
   if (value == null || isNaN(value)) return '—';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat(LOCALE, { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
+};
+
+/** Short money for charts and cards: ₹1.2L / ₹12K style compact notation */
+export const formatMoneyCompact = (value, currency = CURRENCY) => {
+  if (value == null || isNaN(value)) return '—';
+  return new Intl.NumberFormat(LOCALE, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(value);
+};
+
+/** "2026-11-22" is a calendar date: read it in local time (new Date() would read it as UTC midnight). */
+const toDate = (date) => {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return typeof date === 'string' ? new Date(date) : date;
 };
 
 /** Compact number formatter (1200 → 1.2K) */
 export const formatCompact = (value) => {
   if (value == null || isNaN(value)) return '—';
-  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat(LOCALE, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 };
 
 /** Date formatter */
 export const formatDate = (date, options = {}) => {
   if (!date) return '—';
-  const d = typeof date === 'string' ? new Date(date) : date;
+  const d = toDate(date);
   if (isNaN(d.getTime())) return '—';
   const defaults = { year: 'numeric', month: 'short', day: 'numeric' };
-  return new Intl.DateTimeFormat('en-US', { ...defaults, ...options }).format(d);
+  return new Intl.DateTimeFormat(LOCALE, { ...defaults, ...options }).format(d);
 };
 
 /** DateTime formatter */

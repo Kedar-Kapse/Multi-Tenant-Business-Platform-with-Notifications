@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { FiSearch, FiFileText, FiCode, FiBook, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX } from 'react-icons/fi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { FiSearch, FiFileText, FiCode, FiBook, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
 import Card, { CardHeader } from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { ehrApi } from '../../../services/organizationService';
+import Select from '../../../components/ui/Select';
+import { toast } from '../../../components/ui/Toast';
 
 const CATEGORIES = ['Registration', 'Clinical Notes', 'Discharge', 'Surgery', 'Pharmacy', 'Behavioral Health', 'Pediatrics', 'Emergency', 'Radiology', 'Laboratory', 'Rehabilitation', 'Communication', 'Legal'];
 
@@ -17,12 +19,9 @@ export default function EhrPage() {
   const [codeType, setCodeType] = useState('icd');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
 
   // Autocomplete dropdown
-  const [suggestions, setSuggestions] = useState([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedCodes, setSelectedCodes] = useState([]);
+  const [codesLoading, setCodesLoading] = useState(false);
 
   // Template modal
   const [templateModal, setTemplateModal] = useState(false);
@@ -37,7 +36,7 @@ export default function EhrPage() {
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+  const showToast = (message, type = 'success') => (type === 'error' ? toast.error(message) : toast.success(message));
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -50,58 +49,37 @@ export default function EhrPage() {
 
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
-  // Fetch suggestions for autocomplete dropdown
-  const fetchSuggestions = useCallback(async (q) => {
-    if (!q || q.length < 2) { setSuggestions([]); setShowDropdown(false); return; }
-    try {
-      const fn = codeType === 'icd' ? ehrApi.getIcdCodes : ehrApi.getCptCodes;
-      const data = await fn(q);
-      setSuggestions(Array.isArray(data) ? data : []);
-      setShowDropdown(true);
-    } catch { setSuggestions([]); }
-  }, [codeType]);
 
-  useEffect(() => {
-    if (tab === 'codes') {
-      const timer = setTimeout(() => fetchSuggestions(search), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [search, tab, fetchSuggestions]);
-
-  // Select a code from dropdown
-  const selectCode = (code) => {
-    if (!selectedCodes.find(c => c.id === code.id)) {
-      setSelectedCodes(prev => [...prev, code]);
-    }
-    setSearch('');
-    setSuggestions([]);
-    setShowDropdown(false);
-  };
-
-  // Remove a selected code
-  const removeCode = (id) => {
-    setSelectedCodes(prev => prev.filter(c => c.id !== id));
-  };
-
-  // Clear all selected codes when switching code type
+  // Clear results when switching code type
   const switchCodeType = (type) => {
     setCodeType(type);
     setCodes([]);
-    setSuggestions([]);
     setSearch('');
-    setShowDropdown(false);
-    setSelectedCodes([]);
   };
 
   // Also load full table when search is used
+  const codeRequest = useRef(0);
   const searchCodes = useCallback(async (q) => {
-    if (!q || q.length < 2) { setCodes([]); return; }
+    const id = ++codeRequest.current;
+    if (!q || q.trim().length < 2) { setCodes([]); setCodesLoading(false); return; }
+    setCodesLoading(true);
     try {
       const fn = codeType === 'icd' ? ehrApi.getIcdCodes : ehrApi.getCptCodes;
-      const data = await fn(q);
-      setCodes(Array.isArray(data) ? data : []);
-    } catch { setCodes([]); }
+      const data = await fn(q.trim());
+      if (id === codeRequest.current) setCodes(Array.isArray(data) ? data.slice(0, 100) : []);
+    } catch {
+      if (id === codeRequest.current) { setCodes([]); toast.error('Code search failed'); }
+    } finally {
+      if (id === codeRequest.current) setCodesLoading(false);
+    }
   }, [codeType]);
+
+  // Typing searches the code library (debounced); results fill the table below.
+  useEffect(() => {
+    if (tab !== 'codes') return undefined;
+    const timer = setTimeout(() => searchCodes(search), 300);
+    return () => clearTimeout(timer);
+  }, [search, tab, searchCodes]);
 
   // ── Template CRUD ──
   const openCreateTemplate = () => { setEditingTemplate(null); setTemplateForm(emptyTemplate); setTemplateModal(true); };
@@ -179,12 +157,6 @@ export default function EhrPage() {
 
   return (
     <div className="space-y-4">
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'}`}>
-          {toast.msg}
-          <button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button>
-        </div>
-      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -244,7 +216,7 @@ export default function EhrPage() {
                   {/* Actions */}
                   <div className="flex items-center gap-1 mt-3 pt-3 border-t border-secondary-100 dark:border-secondary-700">
                     <button onClick={() => toggleTemplate(t)} title={t.active ? 'Disable' : 'Enable'} className="p-1.5 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-500 hover:text-primary-600 transition">
-                      {t.active ? <FiToggleRight size={16} className="text-emerald-500" /> : <FiToggleLeft size={16} />}
+                      {t.active ? <FiToggleRight size={16} className="text-success-500" /> : <FiToggleLeft size={16} />}
                     </button>
                     <button onClick={() => openEditTemplate(t)} title="Edit" className="p-1.5 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-500 hover:text-primary-600 transition">
                       <FiEdit2 size={14} />
@@ -264,7 +236,7 @@ export default function EhrPage() {
       {/* ═══════ CODE LIBRARY TAB ═══════ */}
       {tab === 'codes' && (
         <Card>
-          <CardHeader title="Medical Code Library" subtitle="Search and select ICD-10 and CPT codes" action={
+          <CardHeader title="Medical Code Library" subtitle="Search, add and remove ICD-10 and CPT codes" action={
             <div className="flex gap-1 bg-secondary-100 dark:bg-secondary-800 rounded-lg p-0.5">
               <button onClick={() => switchCodeType('icd')} className={`px-3 py-1 rounded-md text-xs font-medium transition ${codeType === 'icd' ? 'bg-white dark:bg-secondary-700 text-secondary-900 dark:text-white shadow-sm' : 'text-secondary-500'}`}>ICD-10</button>
               <button onClick={() => switchCodeType('cpt')} className={`px-3 py-1 rounded-md text-xs font-medium transition ${codeType === 'cpt' ? 'bg-white dark:bg-secondary-700 text-secondary-900 dark:text-white shadow-sm' : 'text-secondary-500'}`}>CPT</button>
@@ -278,80 +250,20 @@ export default function EhrPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                placeholder={`Search ${codeType.toUpperCase()} codes... (type 2+ chars to see suggestions)`}
+                placeholder={`Search ${codeType.toUpperCase()} codes by code or description (2+ characters)`}
                 className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm text-secondary-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
               />
 
-              {/* Suggestion Dropdown */}
-              {showDropdown && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 rounded-xl shadow-xl z-50 max-h-72 overflow-y-auto">
-                  <div className="px-3 py-2 border-b border-secondary-100 dark:border-secondary-700 text-xs text-secondary-400 font-medium">
-                    {suggestions.length} result{suggestions.length !== 1 ? 's' : ''} — click to select
-                  </div>
-                  {suggestions.map((s) => {
-                    const isSelected = selectedCodes.some(c => c.id === s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        onMouseDown={(e) => { e.preventDefault(); selectCode(s); }}
-                        disabled={isSelected}
-                        className={`w-full text-left px-4 py-3 flex items-center gap-3 transition border-b border-secondary-50 dark:border-secondary-700/50 last:border-0
-                          ${isSelected
-                            ? 'bg-primary-50 dark:bg-primary-900/20 opacity-60 cursor-not-allowed'
-                            : 'hover:bg-primary-50 dark:hover:bg-primary-900/10 cursor-pointer'}`}
-                      >
-                        <span className="font-mono text-sm font-bold text-primary-600 min-w-[70px]">{s.code}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-secondary-800 dark:text-secondary-200 truncate">{s.description}</p>
-                          <p className="text-xs text-secondary-400 mt-0.5">{s.category}{s.subcategory ? ` · ${s.subcategory}` : ''}</p>
-                        </div>
-                        {isSelected ? (
-                          <span className="text-xs text-primary-500 font-medium">Selected</span>
-                        ) : (
-                          <span className="text-xs text-secondary-400">+ Add</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Selected Codes */}
-          {selectedCodes.length > 0 && (
-            <div className="p-4 border-b border-secondary-100 dark:border-secondary-700 bg-primary-50/50 dark:bg-primary-900/10">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
-                  Selected {codeType.toUpperCase()} Codes ({selectedCodes.length})
-                </h4>
-                <button onClick={() => setSelectedCodes([])} className="text-xs text-secondary-400 hover:text-urgent-500 transition">
-                  Clear All
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedCodes.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 bg-white dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 rounded-lg px-3 py-1.5 shadow-sm">
-                    <span className="font-mono text-xs font-bold text-primary-600">{c.code}</span>
-                    <span className="text-xs text-secondary-600 dark:text-secondary-400 max-w-[200px] truncate">{c.description}</span>
-                    <button onClick={() => removeCode(c.id)} className="text-secondary-400 hover:text-urgent-500 transition ml-1">
-                      <FiX size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Full results table (shown when searched) */}
-          {codes.length === 0 && selectedCodes.length === 0 ? (
+          {/* Search results */}
+          {codes.length === 0 ? (
             <div className="p-12 text-center text-secondary-400">
               <FiBook size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">{search.length < 2 ? 'Type at least 2 characters to search and select codes.' : 'No codes found.'}</p>
+              <p className="text-sm">{codesLoading ? 'Searching…' : search.trim().length < 2 ? 'Type at least 2 characters to search the code library.' : 'No codes found.'}</p>
             </div>
-          ) : codes.length > 0 && (
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[600px]">
                 <thead>
@@ -365,24 +277,14 @@ export default function EhrPage() {
                 </thead>
                 <tbody className="divide-y divide-secondary-100 dark:divide-secondary-700/50">
                   {codes.map((c) => {
-                    const isSelected = selectedCodes.some(sc => sc.id === c.id);
                     return (
-                      <tr key={c.id} className={`transition-colors ${isSelected ? 'bg-primary-50/50 dark:bg-primary-900/10' : 'hover:bg-secondary-50/50 dark:hover:bg-secondary-800/30'}`}>
+                      <tr key={c.id} className="transition-colors hover:bg-secondary-50/50 dark:hover:bg-secondary-800/30">
                         <td className="px-5 py-3 font-mono font-semibold text-primary-600">{c.code}</td>
                         <td className="px-5 py-3 text-secondary-700 dark:text-secondary-300">{c.description}</td>
                         <td className="px-5 py-3"><Badge variant="gray">{c.category}</Badge></td>
                         <td className="px-5 py-3 text-secondary-500 text-xs">{c.subcategory || '—'}</td>
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {isSelected ? (
-                              <button onClick={() => removeCode(c.id)} className="px-2 py-1 rounded-md text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-600 font-medium hover:bg-urgent-100 hover:text-urgent-600 transition">
-                                ✓ Selected
-                              </button>
-                            ) : (
-                              <button onClick={() => selectCode(c)} className="px-2 py-1 rounded-md text-xs bg-secondary-100 dark:bg-secondary-700 text-secondary-600 dark:text-secondary-300 font-medium hover:bg-primary-100 hover:text-primary-600 transition">
-                                + Select
-                              </button>
-                            )}
                             <button onClick={() => setDeleteConfirm({ type: 'code', id: c.id, name: c.code })} title="Delete" className="p-1.5 rounded-lg hover:bg-urgent-50 dark:hover:bg-urgent-900/20 text-secondary-500 hover:text-urgent-600 transition">
                               <FiTrash2 size={14} />
                             </button>
@@ -412,9 +314,9 @@ export default function EhrPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Category *</label>
-              <select value={templateForm.category} onChange={(e) => setTF('category', e.target.value)} className={inputClass}>
+              <Select value={templateForm.category} onChange={(e) => setTF('category', e.target.value)} className={inputClass}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Specialty</label>

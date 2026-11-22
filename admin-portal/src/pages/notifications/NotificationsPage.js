@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiBell, FiCheck, FiCheckCircle, FiTrash2, FiMail, FiMessageSquare, FiAlertCircle } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import {
+  FiBell, FiCheck, FiCheckCircle, FiTrash2, FiMessageSquare, FiCalendar, FiFileText, FiDollarSign, FiRefreshCw,
+} from 'react-icons/fi';
 import Card from '../../components/ui/Card';
-import Badge from '../../components/ui/Badge';
 import Tabs from '../../components/ui/Tabs';
 import EmptyState from '../../components/ui/EmptyState';
 import notificationService from '../../services/notificationService';
@@ -9,141 +11,186 @@ import useNotificationStore from '../../store/notificationStore';
 import { formatRelativeTime } from '../../utils/formatters';
 import { toast } from '../../components/ui/Toast';
 
+const PAGE_SIZE = 20;
 const TABS = [
   { key: 'all', label: 'All' },
   { key: 'unread', label: 'Unread' },
-  { key: 'alerts', label: 'Alerts' },
-  { key: 'system', label: 'System' },
+  { key: 'MESSAGE_RECEIVED', label: 'Messages' },
+  { key: 'APPOINTMENT', label: 'Appointments' },
 ];
 
+const TYPE_ICON = {
+  MESSAGE_RECEIVED: { icon: FiMessageSquare, cls: 'text-primary-500' },
+  APPOINTMENT_BOOKED: { icon: FiCalendar, cls: 'text-success-600' },
+  APPOINTMENT_CANCELLED: { icon: FiCalendar, cls: 'text-urgent-500' },
+  NOTE_SIGNED: { icon: FiFileText, cls: 'text-primary-600' },
+  INVOICE_CREATED: { icon: FiDollarSign, cls: 'text-warning-600' },
+};
+
+/** Links the admin portal can open (notifications are shared across portals). */
+const ADMIN_ROUTES = ['/messages', '/patients', '/claims', '/staff'];
+
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState([]);
+  const navigate = useNavigate();
+  const refreshBell = useNotificationStore((s) => s.refresh);
+  const [items, setItems] = useState([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [tab, setTab] = useState('all');
-  const { markAsRead, markAllRead, clearAll } = useNotificationStore();
+  const [busy, setBusy] = useState(false);
+
+  const fetchPage = useCallback(async (p) => {
+    const params = { page: p, size: PAGE_SIZE };
+    if (tab === 'unread') params.unreadOnly = true;
+    else if (tab === 'MESSAGE_RECEIVED') params.type = 'MESSAGE_RECEIVED';
+    const data = await notificationService.getAll(params);
+    let rows = data.content || [];
+    if (tab === 'APPOINTMENT') rows = rows.filter((n) => n.type?.startsWith('APPOINTMENT'));
+    return { rows, last: data.number >= data.totalPages - 1 };
+  }, [tab]);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const data = await notificationService.getAll({ type: tab !== 'all' ? tab : undefined });
-      setNotifications(Array.isArray(data) ? data : data?.content || []);
-    } catch {
-      // Fallback to store notifications
-      setNotifications(useNotificationStore.getState().notifications);
+      const { rows, last } = await fetchPage(0);
+      setItems(rows);
+      setPage(0);
+      setHasMore(!last);
+    } catch (e) {
+      setError(e.response?.data?.message || 'Could not load notifications.');
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [fetchPage]);
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = notifications.filter((n) => {
-    if (tab === 'unread') return !n.read;
-    if (tab === 'alerts') return n.type === 'alert' || n.severity === 'critical' || n.severity === 'warning';
-    if (tab === 'system') return n.type === 'system';
-    return true;
-  });
-
-  const handleMarkRead = async (id) => {
+  const loadMore = async () => {
+    setBusy(true);
     try {
-      await notificationService.markRead(id);
-      markAsRead(id);
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-    } catch {
-      markAsRead(id);
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      const { rows, last } = await fetchPage(page + 1);
+      setItems((prev) => [...prev, ...rows]);
+      setPage(page + 1);
+      setHasMore(!last);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not load more notifications');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleMarkAllRead = async () => {
+  const markRead = async (n) => {
     try {
-      await notificationService.markAllRead();
-    } catch { /* continue with local update */ }
-    markAllRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    toast.success('All notifications marked as read');
+      await notificationService.markRead(n.id);
+      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      refreshBell();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not mark as read');
+    }
   };
 
-  const handleDelete = async (id) => {
+  const markAll = async () => {
+    setBusy(true);
     try {
-      await notificationService.delete(id);
-    } catch { /* continue with local removal */ }
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+      const { updated } = await notificationService.markAllRead();
+      setItems((prev) => prev.map((x) => ({ ...x, read: true })));
+      refreshBell();
+      toast.success(updated ? `Marked ${updated} as read` : 'Nothing unread');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not mark all as read');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleClearAll = () => {
-    clearAll();
-    setNotifications([]);
-    toast.info('All notifications cleared');
+  const remove = async (n) => {
+    try {
+      await notificationService.delete(n.id);
+      setItems((prev) => prev.filter((x) => x.id !== n.id));
+      refreshBell();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not delete notification');
+    }
   };
 
-  const getIcon = (type, severity) => {
-    if (severity === 'critical' || severity === 'danger') return <FiAlertCircle className="text-urgent-500" size={16} />;
-    if (severity === 'warning') return <FiAlertCircle className="text-warning-500" size={16} />;
-    if (type === 'email') return <FiMail className="text-primary-500" size={16} />;
-    if (type === 'sms') return <FiMessageSquare className="text-success-500" size={16} />;
-    return <FiBell className="text-secondary-400" size={16} />;
+  const open = (n) => {
+    if (!n.read) markRead(n);
+    if (n.link && ADMIN_ROUTES.includes(n.link)) navigate(n.link);
   };
+
+  const unreadShown = items.filter((n) => !n.read).length;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-secondary-900 dark:text-white">Notifications</h1>
-          <p className="text-sm text-secondary-500 mt-0.5">System alerts, messages, and campaign updates.</p>
+          <p className="text-sm text-secondary-500 mt-0.5">Messages and activity that concern you.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleMarkAllRead} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800 text-sm transition">
-            <FiCheckCircle size={14} /> Mark all read
+          <button onClick={load} disabled={loading} title="Refresh"
+            className="p-2 rounded-lg border border-secondary-200 dark:border-secondary-700 text-secondary-500 hover:bg-secondary-50 dark:hover:bg-secondary-800 transition disabled:opacity-50">
+            <FiRefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={handleClearAll} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-urgent-200 dark:border-urgent-800 text-urgent-600 hover:bg-urgent-50 dark:hover:bg-urgent-900/20 text-sm transition">
-            <FiTrash2 size={14} /> Clear all
+          <button onClick={markAll} disabled={busy}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 text-secondary-600 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 text-sm transition disabled:opacity-50">
+            <FiCheckCircle size={14} /> Mark all read
           </button>
         </div>
       </div>
 
-      <Tabs tabs={TABS.map((t) => ({ ...t, count: t.key === 'unread' ? filtered.filter((n) => !n.read).length : undefined }))} activeKey={tab} onChange={setTab} />
+      <Tabs tabs={TABS.map((t) => ({ ...t, count: t.key === 'unread' && tab === 'unread' ? unreadShown : undefined }))} activeKey={tab} onChange={setTab} />
 
       <Card>
         {loading ? (
-          <div className="p-12 text-center text-secondary-400">Loading notifications…</div>
-        ) : filtered.length === 0 ? (
-          <EmptyState icon={FiBell} title="No notifications" description={tab === 'unread' ? "You're all caught up!" : 'No notifications to display.'} />
+          <div className="p-12 text-center text-secondary-400 text-sm">Loading notifications…</div>
+        ) : error ? (
+          <EmptyState icon={FiBell} title="Couldn't load notifications" description={error}
+            action={<button onClick={load} className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm">Try again</button>} />
+        ) : items.length === 0 ? (
+          <EmptyState icon={FiBell} title="No notifications" description={tab === 'unread' ? "You're all caught up." : 'Nothing here yet.'} />
         ) : (
-          <div className="divide-y divide-secondary-100 dark:divide-secondary-700/50">
-            {filtered.map((n) => (
-              <div key={n.id} className={`px-5 py-4 flex items-start gap-3 transition-colors hover:bg-secondary-50/50 dark:hover:bg-secondary-800/30 ${!n.read ? 'bg-primary-50/30 dark:bg-primary-900/10' : ''}`}>
-                <div className="mt-0.5 flex-shrink-0">
-                  {getIcon(n.type, n.severity)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className={`text-sm leading-relaxed ${!n.read ? 'font-medium text-secondary-900 dark:text-white' : 'text-secondary-600 dark:text-secondary-400'}`}>
-                        {n.title || n.msg || n.message}
-                      </p>
-                      {n.body && <p className="text-xs text-secondary-500 mt-0.5">{n.body}</p>}
-                    </div>
+          <>
+            <ul className="divide-y divide-secondary-100 dark:divide-secondary-700/50">
+              {items.map((n) => {
+                const meta = TYPE_ICON[n.type] || { icon: FiBell, cls: 'text-secondary-400' };
+                const Icon = meta.icon;
+                return (
+                  <li key={n.id} className={`px-4 sm:px-5 py-4 flex items-start gap-3 transition-colors hover:bg-secondary-50/60 dark:hover:bg-secondary-800/30 ${!n.read ? 'bg-primary-50/40 dark:bg-primary-900/10' : ''}`}>
+                    <Icon size={16} className={`mt-0.5 flex-shrink-0 ${meta.cls}`} />
+                    <button type="button" onClick={() => open(n)} className="flex-1 min-w-0 text-left">
+                      <p className={`text-sm truncate ${!n.read ? 'font-semibold text-secondary-900 dark:text-white' : 'text-secondary-700 dark:text-secondary-300'}`}>{n.title}</p>
+                      {n.body && <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-0.5 line-clamp-2 break-words">{n.body}</p>}
+                      <p className="text-[11px] text-secondary-400 mt-1">{formatRelativeTime(n.createdAt)}</p>
+                    </button>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {!n.read && (
-                        <button onClick={() => handleMarkRead(n.id)} className="p-1 rounded hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-400 hover:text-primary-600 transition" title="Mark as read">
+                        <button onClick={() => markRead(n)} title="Mark as read"
+                          className="p-1.5 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-400 hover:text-primary-600 transition">
                           <FiCheck size={14} />
                         </button>
                       )}
-                      <button onClick={() => handleDelete(n.id)} className="p-1 rounded hover:bg-urgent-50 dark:hover:bg-urgent-900/20 text-secondary-400 hover:text-urgent-600 transition" title="Delete">
+                      <button onClick={() => remove(n)} title="Delete"
+                        className="p-1.5 rounded-lg hover:bg-urgent-50 dark:hover:bg-urgent-900/20 text-secondary-400 hover:text-urgent-600 transition">
                         <FiTrash2 size={14} />
                       </button>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] text-secondary-400">{formatRelativeTime(n.timestamp || n.createdAt)}</span>
-                    {n.severity && <Badge variant={n.severity === 'critical' ? 'danger' : n.severity === 'warning' ? 'warning' : 'info'}>{n.severity}</Badge>}
-                    {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-primary-500" />}
-                  </div>
-                </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {hasMore && (
+              <div className="p-3 border-t border-secondary-100 dark:border-secondary-700/50 text-center">
+                <button onClick={loadMore} disabled={busy}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-50">
+                  {busy ? 'Loading…' : 'Load more'}
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </Card>
     </div>

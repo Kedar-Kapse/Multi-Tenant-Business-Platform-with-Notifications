@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import ToastContainer from './components/ui/Toast';
-import useThemeStore from './store/themeStore';
+import useThemeStore, { resolveTheme } from './store/themeStore';
 import useAuthStore from './store/authStore';
 import './index.css';
 
@@ -12,7 +12,7 @@ function App() {
   const initialized = useAuthStore((s) => s.initialized);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('dark', resolveTheme(theme) === 'dark');
   }, [theme]);
 
   useEffect(() => {

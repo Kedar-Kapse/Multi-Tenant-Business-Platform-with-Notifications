@@ -1,4 +1,5 @@
 import cn from '../../utils/cn';
+import DesignSelect from './Select';
 
 /**
  * Reusable form field wrapper with label, error display, and variants.
@@ -37,29 +38,9 @@ export function Input({ error, touched, className, ...props }) {
   );
 }
 
-/** Select dropdown with form styling */
-export function Select({ options = [], placeholder, error, touched, className, ...props }) {
-  return (
-    <select
-      {...props}
-      className={cn(
-        'w-full px-3 py-2 rounded-lg border text-sm outline-none transition',
-        'bg-white dark:bg-secondary-800 text-secondary-900 dark:text-white',
-        'focus:ring-2 focus:ring-primary-500',
-        touched && error
-          ? 'border-urgent-300 dark:border-urgent-700'
-          : 'border-secondary-200 dark:border-secondary-700',
-        className
-      )}
-    >
-      {placeholder && <option value="">{placeholder}</option>}
-      {options.map((opt) => (
-        <option key={opt.value ?? opt} value={opt.value ?? opt}>
-          {opt.label ?? opt}
-        </option>
-      ))}
-    </select>
-  );
+/** Select dropdown with form styling (design-system dropdown, see ./Select.js) */
+export function Select(props) {
+  return <DesignSelect {...props} />;
 }
 
 /** Textarea with form styling */

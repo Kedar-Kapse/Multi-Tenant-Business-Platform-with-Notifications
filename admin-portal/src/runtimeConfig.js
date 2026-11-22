@@ -34,3 +34,8 @@ export const API_BASE_URL = isLocal
 
 // The app's own name in Keycloak -- the same in every environment.
 export const KEYCLOAK_CLIENT_ID = 'platform-frontend';
+
+// The platform owner's own sign-in area -- not a hospital. Platform admins use
+// https://platform.admin.<domain> and only manage hospitals (tenants) there.
+// The API decides who is a platform admin; this only picks which menu to show.
+export const PLATFORM_TENANT = process.env.REACT_APP_PLATFORM_TENANT || 'platform';

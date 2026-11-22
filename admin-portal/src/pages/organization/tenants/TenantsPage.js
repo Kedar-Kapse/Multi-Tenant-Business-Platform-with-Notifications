@@ -115,8 +115,8 @@ export default function TenantsPage() {
   };
 
   const statusBadge = (s) => {
-    const map = { ACTIVE: 'success', INACTIVE: 'gray' };
-    return <Badge variant={map[s] || 'gray'} dot>{s || 'ACTIVE'}</Badge>;
+    const map = { ACTIVE: 'success', INACTIVE: 'gray', PROVISIONING: 'warning', FAILED: 'danger' };
+    return <Badge variant={map[s] || 'gray'} dot>{s ? s.charAt(0) + s.slice(1).toLowerCase() : 'Unknown'}</Badge>;
   };
 
   return (

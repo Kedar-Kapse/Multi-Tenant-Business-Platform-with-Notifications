@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiSearch, FiList, FiPlus, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
+import { FiSearch, FiList, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { feeScheduleApi } from '../../../services/financialService';
+import Select from '../../../components/ui/Select';
+import { toast } from '../../../components/ui/Toast';
 
 const CATEGORIES = ['E&M', 'Emergency', 'Behavioral Health', 'Laboratory', 'Radiology', 'Procedures', 'Physical Therapy', 'Preventive', 'Immunization', 'Hospital'];
 const inputClass = 'w-full px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500 text-secondary-900 dark:text-white';
@@ -17,10 +19,9 @@ export default function FeeSchedulePage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyFee);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+  const showToast = (message, type = 'success') => (type === 'error' ? toast.error(message) : toast.success(message));
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const load = useCallback(async () => {
@@ -57,7 +58,6 @@ export default function FeeSchedulePage() {
 
   return (
     <div className="space-y-4">
-      {toast && (<div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'}`}>{toast.msg}<button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button></div>)}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -105,7 +105,7 @@ export default function FeeSchedulePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Code *</label><input value={form.code} onChange={e => set('code', e.target.value)} className={inputClass} placeholder="99213" readOnly={!!editing} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Category</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
+              <Select value={form.category} onChange={e => set('category', e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</Select>
             </div>
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Description *</label><input value={form.description} onChange={e => set('description', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Fee Amount (₹) *</label><input type="number" step="0.01" value={form.fee} onChange={e => set('fee', e.target.value)} className={inputClass} /></div>

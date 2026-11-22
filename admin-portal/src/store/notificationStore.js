@@ -1,25 +1,37 @@
 import { create } from 'zustand';
+import notificationService from '../services/notificationService';
 
-const useNotificationStore = create((set) => ({
-  notifications: [],
-  unreadCount: 3,
+/**
+ * Bell badge + latest notifications for the navbar, loaded from notification-service.
+ * refresh() is called on login, every minute (AdminLayout) and after any change.
+ */
+const useNotificationStore = create((set, get) => ({
+  recent: [],
+  unreadCount: 0,
+  loaded: false,
 
-  addNotification: (notification) => set((s) => ({
-    notifications: [{ id: Date.now(), timestamp: new Date(), read: false, ...notification }, ...s.notifications],
-    unreadCount: s.unreadCount + 1,
-  })),
+  refresh: async () => {
+    try {
+      const [count, page] = await Promise.all([
+        notificationService.getUnreadCount(),
+        notificationService.getAll({ page: 0, size: 5 }),
+      ]);
+      set({ unreadCount: count, recent: page.content || [], loaded: true });
+    } catch {
+      // keep the last known values; the bell must never break the page
+      set({ loaded: true });
+    }
+  },
 
-  markAsRead: (id) => set((s) => ({
-    notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n),
-    unreadCount: Math.max(0, s.unreadCount - 1),
-  })),
+  markAsRead: async (id) => {
+    await notificationService.markRead(id);
+    await get().refresh();
+  },
 
-  markAllRead: () => set((s) => ({
-    notifications: s.notifications.map(n => ({ ...n, read: true })),
-    unreadCount: 0,
-  })),
-
-  clearAll: () => set({ notifications: [], unreadCount: 0 }),
+  markAllRead: async () => {
+    await notificationService.markAllRead();
+    await get().refresh();
+  },
 }));
 
 export default useNotificationStore;

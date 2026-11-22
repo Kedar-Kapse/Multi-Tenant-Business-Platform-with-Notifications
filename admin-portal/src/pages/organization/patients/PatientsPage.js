@@ -1,9 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiSearch, FiUser, FiX, FiMail, FiEye, FiEyeOff, FiRefreshCw } from 'react-icons/fi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { FiPlus, FiSearch, FiUser, FiMail, FiEye, FiEyeOff, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { patientApi } from '../../../services/patientService';
+import Select from '../../../components/ui/Select';
+import DatePicker from '../../../components/ui/DatePicker';
+import { toast } from '../../../components/ui/Toast';
+import useDebounce from '../../../hooks/useDebounce';
+import ConfirmDialog from '../../../components/ui/ConfirmDialog';
+import { formatDate } from '../../../utils/formatters';
+
+/** Today as YYYY-MM-DD in local time (birth dates can't be in the future). */
+const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 const GENDERS = ['MALE', 'FEMALE', 'OTHER'];
 
@@ -41,7 +51,11 @@ function Field({ label, required, error, children }) {
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') || '');
+  const query = useDebounce(search.trim(), 300);
+  const [loadError, setLoadError] = useState(null);
+  const requestId = useRef(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -51,32 +65,55 @@ export default function PatientsPage() {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   const [showSsn, setShowSsn] = useState(false);
   const [syncing, setSyncing] = useState(null); // patientId currently being synced
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await patientApi.remove(deleteTarget.id);
+      toast.success(`${deleteTarget.firstName} ${deleteTarget.lastName} was removed`);
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not delete the patient');
+    } finally {
+      setDeleting(false);
+    }
   };
 
+  const showToast = (message, type = 'success') => (type === 'error' ? toast.error(message) : toast.success(message));
+
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
+    setLoadError(null);
     try {
-      const data = await patientApi.list(page, 20, search || undefined, statusFilter || undefined);
+      const data = await patientApi.list(page, 20, query || undefined, statusFilter || undefined);
+      if (id !== requestId.current) return; // a newer request is on its way
       setPatients(data?.content || []);
       setTotalPages(data?.totalPages || 0);
       setTotalElements(data?.totalElements || 0);
     } catch (err) {
-      console.error('Patients load error', err);
-      setPatients([]);
+      if (id !== requestId.current) return;
+      setLoadError(err?.response?.data?.message || 'Could not load patients.');
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, query, statusFilter]);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(0); }, [search, statusFilter]);
+  // New search/filter -> back to page 1 with a single request.
+  const filterKey = `${query}|${statusFilter}`;
+  const lastFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastFilterKey.current !== filterKey) {
+      lastFilterKey.current = filterKey;
+      if (page !== 0) { setPage(0); return; }
+    }
+    load();
+  }, [load, filterKey, page]);
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -143,14 +180,6 @@ export default function PatientsPage() {
 
   return (
     <div className="space-y-4">
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
-          toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'
-        }`}>
-          {toast.msg}
-          <button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button>
-        </div>
-      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -172,12 +201,12 @@ export default function PatientsPage() {
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400" size={14} />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email..." className={`pl-9 ${inputClass}`} />
             </div>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={inputClass + ' sm:flex-none sm:w-48'}>
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={inputClass + ' sm:flex-none sm:w-48'}>
               <option value="">All statuses</option>
               <option value="PENDING_REGISTRATION">Pending Registration</option>
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
-            </select>
+            </Select>
           </div>
         </div>
 
@@ -193,16 +222,22 @@ export default function PatientsPage() {
                 <th className="px-5 py-3 text-left font-medium">Status</th>
                 <th className="px-5 py-3 text-left font-medium">PCC Sync</th>
                 <th className="px-5 py-3 text-left font-medium">Created</th>
+                <th className="px-5 py-3 text-right font-medium" aria-label="Actions" />
               </tr>
             </thead>
             <tbody className="divide-y divide-secondary-100 dark:divide-secondary-700/50">
               {loading ? (
-                <tr><td colSpan={8} className="px-5 py-16 text-center text-secondary-400">
+                <tr><td colSpan={9} className="px-5 py-16 text-center text-secondary-400">
                   <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                   Loading patients...
                 </td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={9} className="px-5 py-16 text-center">
+                  <p className="text-sm text-urgent-600 dark:text-urgent-400">{loadError}</p>
+                  <button onClick={load} className="mt-3 px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm">Try again</button>
+                </td></tr>
               ) : patients.length === 0 ? (
-                <tr><td colSpan={8} className="px-5 py-16 text-center text-secondary-400">
+                <tr><td colSpan={9} className="px-5 py-16 text-center text-secondary-400">
                   <FiUser size={24} className="mx-auto mb-2 opacity-50" />
                   No patients found.
                 </td></tr>
@@ -217,7 +252,7 @@ export default function PatientsPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3 text-xs font-mono text-secondary-500 dark:text-secondary-400">{p.mrn || '—'}</td>
-                  <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400 flex items-center gap-2"><FiMail size={12} />{p.email}</td>
+                  <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400 max-w-[220px]"><span className="flex items-center gap-2 min-w-0"><FiMail size={12} className="flex-shrink-0" /><span className="truncate" title={p.email}>{p.email}</span></span></td>
                   <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400">{p.phone || '—'}</td>
                   <td className="px-5 py-3 text-secondary-600 dark:text-secondary-400">{p.dateOfBirth || '—'}</td>
                   <td className="px-5 py-3"><Badge variant={STATUS_COLORS[p.status] || 'gray'} dot>{p.status}</Badge></td>
@@ -242,7 +277,13 @@ export default function PatientsPage() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-xs text-secondary-400">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>
+                  <td className="px-5 py-3 text-xs text-secondary-400 whitespace-nowrap">{p.createdAt ? formatDate(p.createdAt) : '—'}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button onClick={() => setDeleteTarget(p)} title="Delete patient" aria-label={`Delete ${p.firstName} ${p.lastName}`}
+                      className="p-1.5 rounded-lg text-secondary-400 hover:text-urgent-600 hover:bg-urgent-50 dark:hover:bg-urgent-900/20 transition">
+                      <FiTrash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -278,13 +319,13 @@ export default function PatientsPage() {
                 <input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputClass} placeholder="+1 (555) 123-4567" />
               </Field>
               <Field label="Date of Birth">
-                <input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} className={inputClass} />
+                <DatePicker type="date" max={todayLocal()} value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
               </Field>
               <Field label="Gender">
-                <select value={form.gender} onChange={e => set('gender', e.target.value)} className={inputClass}>
+                <Select value={form.gender} onChange={e => set('gender', e.target.value)} className={inputClass}>
                   <option value="">—</option>
                   {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0) + g.slice(1).toLowerCase()}</option>)}
-                </select>
+                </Select>
               </Field>
             </div>
           </div>
@@ -366,6 +407,10 @@ export default function PatientsPage() {
           </button>
         </div>
       </Modal>
+      <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} loading={deleting}
+        variant="danger" title="Delete patient"
+        message={`Remove ${deleteTarget?.firstName || ''} ${deleteTarget?.lastName || ''} from the patient list? Their record is kept for audit (soft delete).`}
+        confirmLabel="Delete" />
     </div>
   );
 }

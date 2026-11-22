@@ -4,6 +4,8 @@ import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { permissionsApi } from '../../../services/securityService';
+import EmptyState from '../../../components/ui/EmptyState';
+import { toast } from '../../../components/ui/Toast';
 
 const MODULES = ['Dashboard', 'Staff', 'Tenants', 'EHR', 'Inventory', 'Claims', 'Fee Schedule', 'Audit Logs', 'Permissions'];
 const ACTIONS = ['view', 'create', 'edit', 'delete', 'export'];
@@ -12,31 +14,26 @@ export default function PermissionsPage() {
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
+  const [, setEditingRole] = useState(null);
   const [form, setForm] = useState({ name: '', description: '' });
   const [editPerms, setEditPerms] = useState({});
   const [permModalOpen, setPermModalOpen] = useState(false);
   const [permRole, setPermRole] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [error, setError] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+  const showToast = (msg, type = 'success') => (type === 'error' ? toast.error(msg) : toast.success(msg));
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await permissionsApi.getRoles();
       setRoles(Array.isArray(data) ? data : []);
-    } catch {
-      setRoles([
-        { id: '1', name: 'ADMIN', description: 'Full platform access', permissions: MODULES.reduce((acc, m) => ({ ...acc, [m]: ACTIONS }), {}) },
-        { id: '2', name: 'PHYSICIAN', description: 'Clinical access', permissions: { Dashboard: ['view'], Staff: ['view'], EHR: ['view', 'create', 'edit'], Inventory: ['view'], Claims: ['view'] } },
-        { id: '3', name: 'NURSE', description: 'Clinical documentation', permissions: { Dashboard: ['view'], EHR: ['view', 'create', 'edit'], Inventory: ['view'] } },
-        { id: '4', name: 'THERAPIST', description: 'Therapy sessions', permissions: { Dashboard: ['view'], EHR: ['view', 'create', 'edit'], Inventory: ['view'] } },
-        { id: '5', name: 'PATIENT', description: 'Patient self-service', permissions: { Dashboard: ['view'], EHR: ['view'] } },
-        { id: '6', name: 'PROVIDER', description: 'Healthcare provider org', permissions: { Dashboard: ['view'], Staff: ['view', 'create', 'edit'], EHR: ['view', 'create', 'edit'], Inventory: ['view', 'edit'], Claims: ['view', 'create'] } },
-      ]);
+    } catch (e) {
+      setRoles([]);
+      setError(e?.response?.data?.message || 'Could not load roles.');
     } finally { setLoading(false); }
   }, []);
 
@@ -111,19 +108,20 @@ export default function PermissionsPage() {
     });
   };
 
-  const savePermissions = () => {
-    // Update local state (in a real app this would call an API)
-    const updatedPerms = {};
-    MODULES.forEach(m => {
-      const enabledActions = ACTIONS.filter(a => editPerms[m]?.[a]);
-      if (enabledActions.length > 0) updatedPerms[m] = enabledActions;
-    });
-
-    setRoles(prev => prev.map(r =>
-      r.id === permRole.id ? { ...r, permissions: updatedPerms } : r
-    ));
-    setPermModalOpen(false);
-    showToast(`Permissions updated for "${permRole.name}"`);
+  const savePermissions = async () => {
+    const grid = {};
+    MODULES.forEach(m => { grid[m] = ACTIONS.filter(a => editPerms[m]?.[a]); });
+    setSaving(true);
+    try {
+      await permissionsApi.savePermissions(permRole.name, grid);
+      setPermModalOpen(false);
+      showToast(`Permissions saved for "${permRole.name}"`);
+      load();
+    } catch (e) {
+      showToast(e?.response?.data?.message || 'Failed to save permissions', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const roleColor = (name) => {
@@ -133,7 +131,6 @@ export default function PermissionsPage() {
 
   return (
     <div className="space-y-4">
-      {toast && (<div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'}`}>{toast.msg}<button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button></div>)}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -152,6 +149,9 @@ export default function PermissionsPage() {
 
       {loading ? (
         <div className="p-12 text-center text-secondary-400"><div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />Loading roles...</div>
+      ) : error ? (
+        <Card><EmptyState icon={FiShield} title="Couldn't load roles" description={error}
+          action={<button onClick={load} className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm">Try again</button>} /></Card>
       ) : (
         <div className="space-y-4">
           {roles.map((role) => (
@@ -173,7 +173,7 @@ export default function PermissionsPage() {
                   <button onClick={() => openPermEditor(role)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-50 dark:bg-primary-900/20 text-primary-600 hover:bg-primary-100 transition">
                     <FiEdit2 size={12} /> Edit Permissions
                   </button>
-                  {!['ADMIN', 'PHYSICIAN', 'NURSE', 'THERAPIST', 'PATIENT', 'PROVIDER'].includes(role.name) && (
+                  {!role.builtIn && (
                     <button onClick={() => setDeleteConfirm(role)} className="p-1.5 rounded-lg hover:bg-urgent-50 text-secondary-500 hover:text-urgent-600 transition">
                       <FiTrash2 size={14} />
                     </button>
@@ -197,7 +197,7 @@ export default function PermissionsPage() {
                         {ACTIONS.map(act => (
                           <td key={act} className="px-4 py-2 text-center">
                             {hasPermission(role, mod, act) ? (
-                              <span className="inline-flex w-5 h-5 rounded bg-emerald-100 dark:bg-emerald-900/30 items-center justify-center"><FiCheck className="text-emerald-600" size={12} /></span>
+                              <span className="inline-flex w-5 h-5 rounded bg-emerald-100 dark:bg-emerald-900/30 items-center justify-center"><FiCheck className="text-success-600" size={12} /></span>
                             ) : (
                               <span className="inline-flex w-5 h-5 rounded bg-secondary-100 dark:bg-secondary-800 items-center justify-center"><FiX className="text-secondary-300 dark:text-secondary-600" size={12} /></span>
                             )}
@@ -261,7 +261,7 @@ export default function PermissionsPage() {
                       </td>
                     ))}
                     <td className="px-3 py-2.5 text-center">
-                      <button onClick={() => toggleModuleAll(mod)} className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition ${allChecked ? 'bg-emerald-600 border-emerald-600' : 'border-secondary-300 dark:border-secondary-600 hover:border-emerald-400'}`}>
+                      <button onClick={() => toggleModuleAll(mod)} className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition ${allChecked ? 'bg-success-600 border-success-600' : 'border-secondary-300 dark:border-secondary-600 hover:border-success-400'}`}>
                         {allChecked && <FiCheck className="text-white" size={12} />}
                       </button>
                     </td>
@@ -273,7 +273,7 @@ export default function PermissionsPage() {
         </div>
         <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-secondary-100 dark:border-secondary-700">
           <button onClick={() => setPermModalOpen(false)} className="px-4 py-2 rounded-lg text-sm text-secondary-600 hover:bg-secondary-100 transition">Cancel</button>
-          <button onClick={savePermissions} className="px-5 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition">Save Permissions</button>
+          <button onClick={savePermissions} disabled={saving} className="px-5 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition disabled:opacity-50">{saving ? 'Saving…' : 'Save Permissions'}</button>
         </div>
       </Modal>
 

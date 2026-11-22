@@ -57,11 +57,13 @@ export const pharmacyApi = {
 
 // ── Messages (via Business Service) ──
 export const messageApi = {
-  getAll:      (userId) => api.get(`${BUSINESS}/api/messages`, { params: { userId } }).then(r => r.data),
-  getThread:   (threadId) => api.get(`${BUSINESS}/api/messages/thread/${threadId}`).then(r => r.data),
-  unreadCount: (userId) => api.get(`${BUSINESS}/api/messages/unread-count`, { params: { userId } }).then(r => r.data),
-  send:        (data) => api.post(`${BUSINESS}/api/messages`, data).then(r => r.data),
-  markRead:    (id) => api.patch(`${BUSINESS}/api/messages/${id}/read`).then(r => r.data),
+  /** My conversations (the server knows who "me" is from the login). */
+  getAll:         ()         => api.get(`${BUSINESS}/api/messages`).then(r => r.data),
+  getThread:      (threadId) => api.get(`${BUSINESS}/api/messages/thread/${threadId}`).then(r => r.data),
+  markThreadRead: (threadId) => api.patch(`${BUSINESS}/api/messages/thread/${threadId}/read`).then(r => r.data),
+  unreadCount:    ()         => api.get(`${BUSINESS}/api/messages/unread-count`).then(r => r.data.count),
+  /** { recipientId, recipientName, recipientRole, subject, body, threadId? } — sender is set by the server */
+  send:           (data)     => api.post(`${BUSINESS}/api/messages`, data).then(r => r.data),
 };
 
 // Backward compatibility

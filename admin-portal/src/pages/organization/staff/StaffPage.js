@@ -1,9 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiAlertTriangle, FiChevronLeft, FiChevronRight, FiUser, FiX, FiEye, FiCheckCircle } from 'react-icons/fi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiAlertTriangle, FiChevronLeft, FiChevronRight, FiUser, FiEye, FiCheckCircle } from 'react-icons/fi';
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { staffApi } from '../../../services/organizationService';
+import Select from '../../../components/ui/Select';
+import DatePicker from '../../../components/ui/DatePicker';
+import { toast } from '../../../components/ui/Toast';
+import useDebounce from '../../../hooks/useDebounce';
+
+/** Today as YYYY-MM-DD in local time (birth dates can't be in the future). */
+const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 const ROLES = ['DOCTOR', 'THERAPIST', 'NURSE', 'PHARMACIST', 'TECHNICIAN', 'BILLING', 'ADMIN'];
 const GENDERS = ['MALE', 'FEMALE', 'OTHER'];
@@ -41,7 +49,11 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-secondary-200 dark
 export default function StaffPage() {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') || '');
+  const query = useDebounce(search.trim(), 300);
+  const [loadError, setLoadError] = useState(null);
+  const requestId = useRef(0);
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -54,42 +66,39 @@ export default function StaffPage() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [toast, setToast] = useState(null);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const showToast = (message, type = 'success') => (type === 'error' ? toast.error(message) : toast.success(message));
 
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
+    setLoadError(null);
     try {
-      let data;
-      if (search || roleFilter || statusFilter) {
-        data = await staffApi.search(search || undefined, roleFilter || undefined, statusFilter || undefined, page, 20);
-      } else {
-        data = await staffApi.getAll(page, 20);
-      }
+      const data = (query || roleFilter || statusFilter)
+        ? await staffApi.search(query || undefined, roleFilter || undefined, statusFilter || undefined, page, 20)
+        : await staffApi.getAll(page, 20);
+      if (id !== requestId.current) return; // a newer request is on its way
       setStaff(data?.content || []);
       setTotalPages(data?.totalPages || 0);
       setTotalElements(data?.totalElements || 0);
     } catch (err) {
-      console.error('Staff load error:', err);
-      // Don't clear staff list on transient errors (token refresh in progress)
-      if (!err?.config?._retry) {
-        setStaff([]);
-        setTotalPages(0);
-        setTotalElements(0);
-      }
+      if (id !== requestId.current) return;
+      setLoadError(err?.response?.data?.message || 'Could not load staff.');
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [page, search, roleFilter, statusFilter]);
+  }, [page, query, roleFilter, statusFilter]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Reset to page 0 when filters change
-  useEffect(() => { setPage(0); }, [search, roleFilter, statusFilter]);
+  // New search/filter -> back to page 1 with a single request.
+  const filterKey = `${query}|${roleFilter}|${statusFilter}`;
+  const lastFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastFilterKey.current !== filterKey) {
+      lastFilterKey.current = filterKey;
+      if (page !== 0) { setPage(0); return; }
+    }
+    load();
+  }, [load, filterKey, page]);
 
   const validate = () => {
     const e = {};
@@ -204,14 +213,6 @@ export default function StaffPage() {
   return (
     <div className="space-y-4">
       {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
-          toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'
-        }`}>
-          {toast.message}
-          <button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button>
-        </div>
-      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -241,15 +242,15 @@ export default function StaffPage() {
               />
             </div>
             <div className="flex gap-2">
-              <select
+              <Select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
                 className="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm text-secondary-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">All Roles</option>
                 {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-              </select>
-              <select
+              </Select>
+              <Select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm text-secondary-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
@@ -257,7 +258,7 @@ export default function StaffPage() {
                 <option value="">All Status</option>
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
-              </select>
+              </Select>
               {(search || roleFilter || statusFilter) && (
                 <button
                   onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); }}
@@ -291,6 +292,11 @@ export default function StaffPage() {
                     <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
                     Loading staff...
                   </div>
+                </td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={7} className="px-5 py-16 text-center">
+                  <p className="text-sm text-urgent-600 dark:text-urgent-400">{loadError}</p>
+                  <button onClick={load} className="mt-3 px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm">Try again</button>
                 </td></tr>
               ) : staff.length === 0 ? (
                 <tr><td colSpan={7} className="px-5 py-16 text-center text-secondary-400">
@@ -338,7 +344,7 @@ export default function StaffPage() {
                           <FiTrash2 size={14} />
                         </button>
                       ) : (
-                        <button onClick={() => handleActivate(s)} title="Activate" className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-secondary-500 hover:text-emerald-600 transition">
+                        <button onClick={() => handleActivate(s)} title="Activate" className="p-1.5 rounded-lg hover:bg-success-50 dark:hover:bg-success-900/20 text-secondary-500 hover:text-success-600 transition">
                           <FiCheckCircle size={14} />
                         </button>
                       )}
@@ -416,12 +422,12 @@ export default function StaffPage() {
                 <input value={form.phone} onChange={(e) => set('phone', e.target.value)} className={inputClass} placeholder="+1 (555) 123-4567" />
               </InputField>
               <InputField label="Date of Birth" required error={errors.dateOfBirth}>
-                <input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} className={inputClass} />
+                <DatePicker type="date" max={todayLocal()} value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
               </InputField>
               <InputField label="Gender" required error={errors.gender}>
-                <select value={form.gender} onChange={(e) => set('gender', e.target.value)} className={inputClass}>
+                <Select value={form.gender} onChange={(e) => set('gender', e.target.value)} className={inputClass}>
                   {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0) + g.slice(1).toLowerCase()}</option>)}
-                </select>
+                </Select>
               </InputField>
               {!editing && (
                 <InputField label="Login Password" required error={errors.password}>
@@ -436,9 +442,9 @@ export default function StaffPage() {
             <h3 className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 uppercase tracking-wider mb-3">Professional Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField label="Role" required error={errors.role}>
-                <select value={form.role} onChange={(e) => set('role', e.target.value)} className={inputClass}>
+                <Select value={form.role} onChange={(e) => set('role', e.target.value)} className={inputClass}>
                   {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
+                </Select>
               </InputField>
               <InputField label="Specialization">
                 <input value={form.specialization} onChange={(e) => set('specialization', e.target.value)} className={inputClass} placeholder="e.g. Cardiology, Pediatrics" />

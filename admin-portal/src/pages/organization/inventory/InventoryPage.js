@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiHome, FiX, FiCheckCircle, FiAlertTriangle, FiPackage, FiGrid } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiHome, FiCheckCircle, FiAlertTriangle, FiPackage, FiGrid } from 'react-icons/fi';
 import Card, { CardHeader } from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import { facilityApi, bedApi, pharmacyApi } from '../../../services/organizationService';
+import Select from '../../../components/ui/Select';
+import DatePicker from '../../../components/ui/DatePicker';
+import { toast } from '../../../components/ui/Toast';
 
 const BED_TYPES = ['ICU','GENERAL','PRIVATE','SEMI_PRIVATE','EMERGENCY','NICU','PICU','MATERNITY','ISOLATION','BURN_UNIT'];
 const BED_STATUSES = ['AVAILABLE','OCCUPIED','RESERVED','MAINTENANCE','CLEANING','OUT_OF_SERVICE'];
@@ -23,7 +26,6 @@ export default function InventoryPage() {
   const [pharmacy, setPharmacy] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFacility, setSelectedFacility] = useState(null);
-  const [toast, setToast] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState('');
   const [editing, setEditing] = useState(null);
@@ -32,7 +34,7 @@ export default function InventoryPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [search, setSearch] = useState('');
 
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+  const showToast = (message, type = 'success') => (type === 'error' ? toast.error(message) : toast.success(message));
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const loadFacilities = useCallback(async () => {
@@ -61,7 +63,7 @@ export default function InventoryPage() {
   const openFacilityModal = (f = null) => {
     setEditing(f); setModalType('facility');
     setForm(f ? { name: f.name, facilityType: f.facilityType || '', address: f.address || '', city: f.city || '', state: f.state || '', zipCode: f.zipCode || '', phone: f.phone || '', email: f.email || '', totalBeds: f.totalBeds || 0 }
-      : { name: '', facilityCode: '', facilityType: 'HOSPITAL', address: '', city: '', state: '', zipCode: '', phone: '', email: '', totalBeds: 10, tenantId: '' });
+      : { name: '', facilityCode: '', facilityType: 'HOSPITAL', address: '', city: '', state: '', zipCode: '', phone: '', email: '', totalBeds: 10 });
     setModalOpen(true);
   };
   const saveFacility = async () => {
@@ -71,7 +73,7 @@ export default function InventoryPage() {
       if (editing) { await facilityApi.update(editing.id, form); showToast('Facility updated'); }
       else {
         if (!form.facilityCode?.trim()) { showToast('Code is required', 'error'); setSaving(false); return; }
-        await facilityApi.create({ ...form, tenantId: form.tenantId || (facilities[0]?.tenantId) });
+        await facilityApi.create(form); // the hospital comes from the login
         showToast('Facility created');
       }
       setModalOpen(false); loadFacilities();
@@ -104,7 +106,9 @@ export default function InventoryPage() {
     setModalOpen(true);
   };
   const savePharmacy = async () => {
-    if (!form.medicineName?.trim() || !form.category?.trim() || !form.batchNumber?.trim()) { showToast('Medicine, category, batch required', 'error'); return; }
+    if (!form.medicineName?.trim() || !form.category?.trim() || !form.batchNumber?.trim()) { showToast('Medicine, category and batch are required', 'error'); return; }
+    if (!form.expiryDate) { showToast('Expiry date is required', 'error'); return; }
+    if (Number(form.quantity) < 0) { showToast('Quantity cannot be negative', 'error'); return; }
     setSaving(true);
     try {
       if (editing) { await pharmacyApi.update(editing.id, form); showToast('Stock updated'); }
@@ -127,11 +131,15 @@ export default function InventoryPage() {
   };
 
   const handleSave = () => { if (modalType === 'facility') saveFacility(); else if (modalType === 'bed') saveBed(); else savePharmacy(); };
-  const filtered = (list) => { const q = search.toLowerCase(); if (!q) return list; return list.filter(i => JSON.stringify(i).toLowerCase().includes(q)); };
+  const SEARCH_FIELDS = ['name', 'facilityCode', 'city', 'wardName', 'roomNumber', 'bedNumber', 'assignedPatientName', 'medicineName', 'category', 'batchNumber', 'manufacturer'];
+  const filtered = (list) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((i) => SEARCH_FIELDS.some((f) => String(i[f] ?? '').toLowerCase().includes(q)));
+  };
 
   return (
     <div className="space-y-4">
-      {toast && (<div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'}`}>{toast.msg}<button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button></div>)}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -152,10 +160,10 @@ export default function InventoryPage() {
       {(tab === 'beds' || tab === 'pharmacy') && facilities.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <label className="text-xs font-medium text-secondary-500">Facility:</label>
-          <select value={selectedFacility?.id || ''} onChange={e => setSelectedFacility(facilities.find(f => f.id === e.target.value) || null)} className="px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+          <Select value={selectedFacility?.id || ''} onChange={e => setSelectedFacility(facilities.find(f => f.id === e.target.value) || null)} className="px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500">
             <option value="">All Facilities</option>
             {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -176,7 +184,7 @@ export default function InventoryPage() {
             <td className="px-4 py-3 text-right"><div className="flex items-center justify-end gap-1">
               <button onClick={() => openFacilityModal(f)} className="p-1.5 rounded-lg hover:bg-secondary-100 text-secondary-500 hover:text-primary-600 transition"><FiEdit2 size={14} /></button>
               {f.status === 'ACTIVE' ? <button onClick={() => setDeleteConfirm({ type:'facility', id:f.id, name:f.name })} className="p-1.5 rounded-lg hover:bg-urgent-50 text-secondary-500 hover:text-urgent-600 transition"><FiTrash2 size={14} /></button>
-              : <button onClick={async () => { await facilityApi.activate(f.id); showToast('Activated'); loadFacilities(); }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-secondary-500 hover:text-emerald-600 transition"><FiCheckCircle size={14} /></button>}
+              : <button onClick={async () => { try { await facilityApi.activate(f.id); showToast('Facility activated'); loadFacilities(); } catch (e) { showToast(e?.response?.data?.message || 'Could not activate the facility', 'error'); } }} className="p-1.5 rounded-lg hover:bg-success-50 text-secondary-500 hover:text-success-600 transition"><FiCheckCircle size={14} /></button>}
             </div></td></tr>))}
         </tbody></table></div></Card>)}
 
@@ -187,10 +195,10 @@ export default function InventoryPage() {
           {loading ? <div className="col-span-full text-center py-12 text-secondary-400">Loading...</div>
           : filtered(beds).length === 0 ? <div className="col-span-full text-center py-12 text-secondary-400"><FiGrid size={24} className="mx-auto mb-2 opacity-50" />No beds.</div>
           : filtered(beds).map(b => (
-            <div key={b.id} onClick={() => openBedModal(b)} className={`p-3 rounded-xl border cursor-pointer transition hover:shadow-md ${b.status === 'AVAILABLE' ? 'border-emerald-200 bg-emerald-50/50 dark:bg-emerald-900/10' : b.status === 'OCCUPIED' ? 'border-urgent-200 bg-urgent-50/50 dark:bg-urgent-900/10' : b.status === 'MAINTENANCE' ? 'border-secondary-300 bg-secondary-100/50' : 'border-warning-200 bg-warning-50/50 dark:bg-warning-900/10'}`}>
+            <div key={b.id} onClick={() => openBedModal(b)} className={`p-3 rounded-xl border cursor-pointer transition hover:shadow-md ${b.status === 'AVAILABLE' ? 'border-success-200 bg-success-50/50 dark:bg-success-900/10' : b.status === 'OCCUPIED' ? 'border-urgent-200 bg-urgent-50/50 dark:bg-urgent-900/10' : b.status === 'MAINTENANCE' ? 'border-secondary-300 bg-secondary-100/50' : 'border-warning-200 bg-warning-50/50 dark:bg-warning-900/10'}`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-secondary-700 dark:text-secondary-300">{b.bedNumber}</span>
-                <span className={`w-2.5 h-2.5 rounded-full ${b.status === 'AVAILABLE' ? 'bg-emerald-500' : b.status === 'OCCUPIED' ? 'bg-urgent-500' : b.status === 'MAINTENANCE' ? 'bg-secondary-400' : 'bg-warning-500'}`} />
+                <span className={`w-2.5 h-2.5 rounded-full ${b.status === 'AVAILABLE' ? 'bg-success-500' : b.status === 'OCCUPIED' ? 'bg-urgent-500' : b.status === 'MAINTENANCE' ? 'bg-secondary-400' : 'bg-warning-500'}`} />
               </div>
               <p className="text-[10px] text-secondary-500 truncate">{b.wardName} · {b.roomNumber}</p>
               <p className="text-[10px] text-secondary-400">{b.bedType?.replace('_',' ')}</p>
@@ -199,7 +207,7 @@ export default function InventoryPage() {
           ))}
         </div>
         <div className="flex flex-wrap gap-4 px-4 py-3 border-t border-secondary-100 dark:border-secondary-700 text-xs text-secondary-500">
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />Available</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success-500" />Available</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-urgent-500" />Occupied</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-warning-500" />Reserved</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-secondary-400" />Maintenance</span>
@@ -229,26 +237,25 @@ export default function InventoryPage() {
       </Card>)}
 
       {/* MODAL */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${modalType}` : `Add ${modalType}`} size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={`${editing ? 'Edit' : 'Add'} ${{ facility: 'Facility', bed: 'Bed', pharmacy: 'Medicine Stock' }[modalType] || ''}`} size="lg">
         <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
           {modalType === 'facility' && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Name *</label><input value={form.name || ''} onChange={e => set('name', e.target.value)} className={inputClass} /></div>
             {!editing && <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Code *</label><input value={form.facilityCode || ''} onChange={e => set('facilityCode', e.target.value.toUpperCase())} className={inputClass} /></div>}
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Type</label><select value={form.facilityType || ''} onChange={e => set('facilityType', e.target.value)} className={inputClass}>{['HOSPITAL','CLINIC','PHARMACY','LAB','REHAB_CENTER','NURSING_HOME','URGENT_CARE'].map(t => <option key={t} value={t}>{t.replace('_',' ')}</option>)}</select></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Type</label><Select value={form.facilityType || ''} onChange={e => set('facilityType', e.target.value)} className={inputClass}>{['HOSPITAL','CLINIC','PHARMACY','LAB','REHAB_CENTER','NURSING_HOME','URGENT_CARE'].map(t => <option key={t} value={t}>{t.replace('_',' ')}</option>)}</Select></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Total Beds</label><input type="number" value={form.totalBeds || ''} onChange={e => set('totalBeds', parseInt(e.target.value) || 0)} className={inputClass} /></div>
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Address</label><input value={form.address || ''} onChange={e => set('address', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">City</label><input value={form.city || ''} onChange={e => set('city', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">State</label><input value={form.state || ''} onChange={e => set('state', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Phone</label><input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Email</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={inputClass} /></div>
-            {!editing && <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Tenant ID *</label><input value={form.tenantId || ''} onChange={e => set('tenantId', e.target.value)} className={inputClass} placeholder="UUID" /></div>}
           </div>)}
           {modalType === 'bed' && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Ward *</label><input value={form.wardName || ''} onChange={e => set('wardName', e.target.value)} className={inputClass} placeholder="ICU, General" /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Room *</label><input value={form.roomNumber || ''} onChange={e => set('roomNumber', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Bed # *</label><input value={form.bedNumber || ''} onChange={e => set('bedNumber', e.target.value)} className={inputClass} /></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Type</label><select value={form.bedType || 'GENERAL'} onChange={e => set('bedType', e.target.value)} className={inputClass}>{BED_TYPES.map(t => <option key={t} value={t}>{t.replace('_',' ')}</option>)}</select></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Status</label><select value={form.status || 'AVAILABLE'} onChange={e => set('status', e.target.value)} className={inputClass}>{BED_STATUSES.map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Type</label><Select value={form.bedType || 'GENERAL'} onChange={e => set('bedType', e.target.value)} className={inputClass}>{BED_TYPES.map(t => <option key={t} value={t}>{t.replace('_',' ')}</option>)}</Select></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Status</label><Select value={form.status || 'AVAILABLE'} onChange={e => set('status', e.target.value)} className={inputClass}>{BED_STATUSES.map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</Select></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Patient ID</label><input value={form.assignedPatientId || ''} onChange={e => set('assignedPatientId', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Patient Name</label><input value={form.assignedPatientName || ''} onChange={e => set('assignedPatientName', e.target.value)} className={inputClass} /></div>
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Notes</label><textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className={inputClass + ' h-16 resize-none'} /></div>
@@ -258,14 +265,14 @@ export default function InventoryPage() {
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Category *</label><input value={form.category || ''} onChange={e => set('category', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Batch # *</label><input value={form.batchNumber || ''} onChange={e => set('batchNumber', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Manufacturer</label><input value={form.manufacturer || ''} onChange={e => set('manufacturer', e.target.value)} className={inputClass} /></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Dosage</label><select value={form.dosageForm || ''} onChange={e => set('dosageForm', e.target.value)} className={inputClass}><option value="">Select</option>{DOSAGE_FORMS.map(d => <option key={d} value={d}>{d.replace('_',' ')}</option>)}</select></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Dosage</label><Select value={form.dosageForm || ''} onChange={e => set('dosageForm', e.target.value)} className={inputClass}><option value="">Select</option>{DOSAGE_FORMS.map(d => <option key={d} value={d}>{d.replace('_',' ')}</option>)}</Select></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Strength</label><input value={form.strength || ''} onChange={e => set('strength', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Quantity *</label><input type="number" min="0" value={form.quantity ?? ''} onChange={e => set('quantity', parseInt(e.target.value) || 0)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Min Stock</label><input type="number" min="1" value={form.minimumStockLevel ?? 50} onChange={e => set('minimumStockLevel', parseInt(e.target.value) || 50)} className={inputClass} /></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Expiry *</label><input type="date" value={form.expiryDate || ''} onChange={e => set('expiryDate', e.target.value)} className={inputClass} /></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Expiry *</label><DatePicker type="date" value={form.expiryDate || ''} onChange={e => set('expiryDate', e.target.value)} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Price (₹)</label><input type="number" step="0.01" value={form.unitPrice || ''} onChange={e => set('unitPrice', e.target.value)} className={inputClass} /></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Storage</label><select value={form.storageCondition || ''} onChange={e => set('storageCondition', e.target.value)} className={inputClass}><option value="">Select</option>{STORAGE_CONDITIONS.map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Schedule</label><select value={form.scheduleClass || ''} onChange={e => set('scheduleClass', e.target.value)} className={inputClass}><option value="">Select</option>{SCHEDULE_CLASSES.map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Storage</label><Select value={form.storageCondition || ''} onChange={e => set('storageCondition', e.target.value)} className={inputClass}><option value="">Select</option>{STORAGE_CONDITIONS.map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</Select></div>
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Schedule</label><Select value={form.scheduleClass || ''} onChange={e => set('scheduleClass', e.target.value)} className={inputClass}><option value="">Select</option>{SCHEDULE_CLASSES.map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</Select></div>
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Notes</label><textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className={inputClass + ' h-16 resize-none'} /></div>
           </div>)}
         </div>

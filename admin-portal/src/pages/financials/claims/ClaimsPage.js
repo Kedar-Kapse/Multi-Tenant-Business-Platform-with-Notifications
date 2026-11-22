@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiSearch, FiFilter, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiRefreshCw, FiDownload, FiPlus, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiRefreshCw, FiDownload, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 import StatCard from '../../../components/ui/StatCard';
 import Modal from '../../../components/ui/Modal';
 import { claimsApi } from '../../../services/financialService';
 import { exportToCSV, exportToPDF, dataToHtmlTable } from '../../../utils/export';
+import Select from '../../../components/ui/Select';
+import DatePicker from '../../../components/ui/DatePicker';
+import { toast } from '../../../components/ui/Toast';
+import { formatCurrency } from '../../../utils/formatters';
 
 const STATUS_OPTIONS = ['all', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'PAID', 'DENIED', 'APPEALED'];
 const inputClass = 'w-full px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500 text-secondary-900 dark:text-white';
 
-const emptyClaim = { claimId: '', patientName: '', patientId: '', payerName: '', provider: '', cptCode: '', icdCode: '', description: '', amount: '', status: 'SUBMITTED', dateSubmitted: new Date().toISOString().split('T')[0] };
+const emptyClaim = { claimId: '', patientName: '', patientId: '', payerName: '', provider: '', cptCode: '', icdCode: '', description: '', amount: '', status: 'SUBMITTED', dateSubmitted: '' }; // empty = today (set by the server)
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState([]);
@@ -21,10 +25,9 @@ export default function ClaimsPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyClaim);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+  const showToast = (message, type = 'success') => (type === 'error' ? toast.error(message) : toast.success(message));
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const load = useCallback(async () => {
@@ -55,7 +58,6 @@ export default function ClaimsPage() {
     return <Badge variant={map[s] || 'gray'} dot>{s?.replace('_', ' ')}</Badge>;
   };
 
-  const formatCurrency = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
 
   const openCreate = () => { setEditing(null); setForm(emptyClaim); setModalOpen(true); };
   const openEdit = (c) => {
@@ -65,10 +67,13 @@ export default function ClaimsPage() {
   };
 
   const handleSave = async () => {
-    if (!form.claimId?.trim() || !form.patientName?.trim() || !form.payerName?.trim() || !form.amount) { showToast('Claim ID, Patient, Payer, and Amount are required', 'error'); return; }
+    if (!form.patientName?.trim() || !form.payerName?.trim() || !form.amount) { showToast('Patient, payer and amount are required', 'error'); return; }
+    if (!(parseFloat(form.amount) > 0)) { showToast('Amount must be greater than 0', 'error'); return; }
+    if (form.paidAmount && parseFloat(form.paidAmount) < 0) { showToast('Paid amount cannot be negative', 'error'); return; }
     setSaving(true);
     try {
-      const payload = { ...form, amount: parseFloat(form.amount) || 0, allowedAmount: form.allowedAmount ? parseFloat(form.allowedAmount) : null, paidAmount: form.paidAmount ? parseFloat(form.paidAmount) : null };
+      const { claimId, ...rest } = form; // the claim number is assigned by the server
+      const payload = { ...rest, dateSubmitted: form.dateSubmitted || null, dateProcessed: form.dateProcessed || null, amount: parseFloat(form.amount) || 0, allowedAmount: form.allowedAmount ? parseFloat(form.allowedAmount) : null, paidAmount: form.paidAmount ? parseFloat(form.paidAmount) : null };
       if (editing) { await claimsApi.update(editing.id, payload); showToast('Claim updated'); }
       else { await claimsApi.submit(payload); showToast('Claim submitted'); }
       setModalOpen(false); load();
@@ -85,7 +90,6 @@ export default function ClaimsPage() {
 
   return (
     <div className="space-y-4">
-      {toast && (<div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-urgent-600 text-white' : 'bg-emerald-600 text-white'}`}>{toast.msg}<button onClick={() => setToast(null)} className="hover:opacity-75"><FiX size={14} /></button></div>)}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -116,9 +120,9 @@ export default function ClaimsPage() {
         <div className="p-3 sm:p-4 border-b border-secondary-100 dark:border-secondary-700 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           <div className="relative flex-1"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400" size={14} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search claims..." className="w-full pl-9 pr-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500" /></div>
           <div className="flex items-center gap-2"><FiFilter size={14} className="text-secondary-400" />
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-sm outline-none focus:ring-2 focus:ring-primary-500">
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'all' ? 'All Statuses' : s.replace('_', ' ')}</option>)}
-            </select>
+            </Select>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -153,8 +157,8 @@ export default function ClaimsPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Claim' : 'Submit New Claim'} size="lg">
         <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Claim ID *</label><input value={form.claimId} onChange={e => set('claimId', e.target.value)} className={inputClass} placeholder="CLM-2026-0016" readOnly={!!editing} /></div>
-            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Date Submitted</label><input type="date" value={form.dateSubmitted} onChange={e => set('dateSubmitted', e.target.value)} className={inputClass} /></div>
+            {editing && <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Claim number</label><input value={form.claimId} className={inputClass + ' opacity-70'} readOnly /></div>}
+            <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Date Submitted</label><DatePicker type="date" value={form.dateSubmitted} onChange={e => set('dateSubmitted', e.target.value)} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Patient Name *</label><input value={form.patientName} onChange={e => set('patientName', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Patient ID</label><input value={form.patientId} onChange={e => set('patientId', e.target.value)} className={inputClass} placeholder="PAT-001" /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Payer / Insurance *</label><input value={form.payerName} onChange={e => set('payerName', e.target.value)} className={inputClass} placeholder="Star Health Insurance" /></div>
@@ -164,14 +168,14 @@ export default function ClaimsPage() {
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Description</label><textarea value={form.description} onChange={e => set('description', e.target.value)} className={inputClass + ' h-16 resize-none'} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Amount (₹) *</label><input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} className={inputClass} /></div>
             <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={inputClass}>
+              <Select value={form.status} onChange={e => set('status', e.target.value)} className={inputClass}>
                 {STATUS_OPTIONS.filter(s => s !== 'all').map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-              </select>
+              </Select>
             </div>
             {editing && (<>
               <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Allowed Amount</label><input type="number" step="0.01" value={form.allowedAmount} onChange={e => set('allowedAmount', e.target.value)} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Paid Amount</label><input type="number" step="0.01" value={form.paidAmount} onChange={e => set('paidAmount', e.target.value)} className={inputClass} /></div>
-              <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Date Processed</label><input type="date" value={form.dateProcessed} onChange={e => set('dateProcessed', e.target.value)} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Date Processed</label><DatePicker type="date" value={form.dateProcessed} onChange={e => set('dateProcessed', e.target.value)} /></div>
               <div className="sm:col-span-2"><label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">Denial Reason</label><input value={form.denialReason} onChange={e => set('denialReason', e.target.value)} className={inputClass} /></div>
             </>)}
           </div>

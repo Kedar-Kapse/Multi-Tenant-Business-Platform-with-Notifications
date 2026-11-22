@@ -1,4 +1,5 @@
 import api, { ACCESS_SECURITY } from './api';
+import keycloak from '../keycloak';
 
 const PORTAL_SWITCH = `${ACCESS_SECURITY}/api/auth/portal-switch`;
 
@@ -17,7 +18,8 @@ const portalService = {
    * The backend returns a redirect URL with the code embedded.
    */
   switchToPortal: async (targetPortalKey) => {
-    const refreshToken = localStorage.getItem('refresh_token');
+    // keycloak-js keeps the refresh token in memory (nothing is stored in localStorage)
+    const refreshToken = keycloak.refreshToken;
     const res = await api.post(`${PORTAL_SWITCH}/generate`, {
       target_portal: targetPortalKey,
       refresh_token: refreshToken,

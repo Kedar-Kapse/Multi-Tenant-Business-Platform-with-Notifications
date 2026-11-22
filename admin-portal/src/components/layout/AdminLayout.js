@@ -1,10 +1,20 @@
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
+import useNotificationStore from '../../store/notificationStore';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import useThemeStore from '../../store/themeStore';
 
 export default function AdminLayout() {
   const { sidebarOpen, toggleSidebar } = useThemeStore();
+  const refreshNotifications = useNotificationStore((s) => s.refresh);
+
+  // Bell badge: load now and every minute while the app is open.
+  useEffect(() => {
+    refreshNotifications();
+    const id = setInterval(refreshNotifications, 60000);
+    return () => clearInterval(id);
+  }, [refreshNotifications]);
 
   return (
     <div className="min-h-screen bg-secondary-50 dark:bg-secondary-950">

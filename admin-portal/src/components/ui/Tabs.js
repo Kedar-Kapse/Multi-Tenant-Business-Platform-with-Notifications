@@ -8,7 +8,7 @@ import cn from '../../utils/cn';
  */
 export default function Tabs({ tabs, activeKey, onChange, className }) {
   return (
-    <div className={cn('flex gap-1 bg-secondary-100 dark:bg-secondary-800 rounded-xl p-1 w-fit', className)}>
+    <div className={cn('flex gap-1 bg-secondary-100 dark:bg-secondary-800 rounded-xl p-1 w-fit max-w-full overflow-x-auto scrollbar-thin', className)}>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const active = tab.key === activeKey;
@@ -17,7 +17,7 @@ export default function Tabs({ tabs, activeKey, onChange, className }) {
             key={tab.key}
             onClick={() => onChange(tab.key)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition',
+              'flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap flex-shrink-0',
               active
                 ? 'bg-white dark:bg-secondary-700 text-secondary-900 dark:text-white shadow-sm'
                 : 'text-secondary-500 hover:text-secondary-700 dark:hover:text-secondary-300'

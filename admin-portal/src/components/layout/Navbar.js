@@ -1,20 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
+import GlobalSearch from './GlobalSearch';
+import { toast } from '../ui/Toast';
 import { useNavigate } from 'react-router-dom';
-import { FiSearch, FiBell, FiSun, FiMoon, FiLogOut, FiUser, FiChevronDown, FiMenu, FiCheck, FiSettings, FiShield } from 'react-icons/fi';
+import { FiBell, FiSun, FiMoon, FiLogOut, FiUser, FiChevronDown, FiMenu, FiCheck, FiSettings, FiShield } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
-import useThemeStore from '../../store/themeStore';
+import useThemeStore, { resolveTheme } from '../../store/themeStore';
 import useNotificationStore from '../../store/notificationStore';
 import { formatRelativeTime } from '../../utils/formatters';
 import PortalSwitcher from '../PortalSwitcher';
 
 export default function Navbar() {
   const { user, logout } = useAuthStore();
+  const isPlatformAdmin = !!user?.isPlatformAdmin;
   const { theme, toggleTheme, toggleSidebar } = useThemeStore();
-  const { notifications, unreadCount, markAsRead, markAllRead } = useNotificationStore();
+  const recentNotifs = useNotificationStore((s) => s.recent);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const markAsRead = useNotificationStore((s) => s.markAsRead);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -28,17 +33,6 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Keyboard shortcut Ctrl/Cmd+K for search
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        document.getElementById('global-search')?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   const handleLogout = async () => {
     setProfileOpen(false);
@@ -46,7 +40,6 @@ export default function Navbar() {
     navigate('/login');
   };
 
-  const recentNotifs = notifications.slice(0, 5);
 
   return (
     <header className="sticky top-0 z-30 h-14 bg-white/80 dark:bg-secondary-900/80 backdrop-blur-xl border-b border-secondary-200 dark:border-secondary-800 flex items-center justify-between px-4 sm:px-6">
@@ -55,18 +48,7 @@ export default function Navbar() {
         <button onClick={toggleSidebar} className="lg:hidden p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition">
           <FiMenu size={18} />
         </button>
-        <div className={`relative transition-all ${searchFocused ? 'w-80' : 'w-64'} hidden sm:block`}>
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400" size={14} />
-          <input
-            id="global-search"
-            type="text"
-            placeholder="Search patients, claims, staff..."
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            className="w-full pl-9 pr-12 py-2 bg-secondary-50 dark:bg-secondary-800 border-0 rounded-xl text-xs text-secondary-700 dark:text-secondary-300 placeholder-secondary-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-          />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex px-1.5 py-0.5 text-[10px] font-medium text-secondary-400 bg-secondary-100 dark:bg-secondary-700 rounded">⌘K</kbd>
-        </div>
+        {!isPlatformAdmin && <GlobalSearch />}
       </div>
 
       {/* Right */}
@@ -76,7 +58,7 @@ export default function Navbar() {
 
         {/* Theme toggle */}
         <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-400 transition-colors" title="Toggle theme">
-          {theme === 'dark' ? <FiSun size={16} /> : <FiMoon size={16} />}
+          {resolveTheme(theme) === 'dark' ? <FiSun size={16} /> : <FiMoon size={16} />}
         </button>
 
         {/* Notifications dropdown */}
@@ -89,11 +71,11 @@ export default function Navbar() {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-secondary-800 rounded-xl shadow-xl border border-secondary-200 dark:border-secondary-700 z-50 overflow-hidden">
+            <div className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 top-14 sm:top-full sm:mt-2 sm:w-96 bg-white dark:bg-secondary-800 rounded-xl shadow-xl border border-secondary-200 dark:border-secondary-700 z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-secondary-100 dark:border-secondary-700 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-secondary-900 dark:text-white">Notifications</h3>
                 {unreadCount > 0 && (
-                  <button onClick={markAllRead} className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+                  <button onClick={() => markAllRead().catch(() => toast.error('Could not mark all as read'))} className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
                     <FiCheck size={12} /> Mark all read
                   </button>
                 )}
@@ -108,16 +90,16 @@ export default function Navbar() {
                   recentNotifs.map((n) => (
                     <div
                       key={n.id}
-                      onClick={() => { markAsRead(n.id); setNotifOpen(false); }}
+                      onClick={() => { if (!n.read) markAsRead(n.id).catch(() => {}); setNotifOpen(false); navigate('/notifications'); }}
                       className={`px-4 py-3 border-b border-secondary-50 dark:border-secondary-700/50 cursor-pointer hover:bg-secondary-50/50 dark:hover:bg-secondary-700/30 transition ${!n.read ? 'bg-primary-50/40 dark:bg-primary-900/10' : ''}`}
                     >
                       <div className="flex items-start gap-2">
                         <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-primary-500' : 'bg-secondary-300 dark:bg-secondary-600'}`} />
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs leading-relaxed ${!n.read ? 'font-medium text-secondary-900 dark:text-white' : 'text-secondary-600 dark:text-secondary-400'}`}>
-                            {n.title || n.msg || n.message || 'New notification'}
+                            {n.title}
                           </p>
-                          <p className="text-[10px] text-secondary-400 mt-0.5">{formatRelativeTime(n.timestamp)}</p>
+                          <p className="text-[10px] text-secondary-400 mt-0.5">{formatRelativeTime(n.createdAt)}</p>
                         </div>
                       </div>
                     </div>
@@ -143,7 +125,7 @@ export default function Navbar() {
             </div>
             <div className="hidden md:block text-left">
               <p className="text-xs font-semibold text-secondary-800 dark:text-secondary-200 leading-none">{user?.username || 'Admin'}</p>
-              <p className="text-[10px] text-secondary-400 mt-0.5">{user?.roles?.[0] || 'Administrator'}</p>
+              <p className="text-[10px] text-secondary-400 mt-0.5">{user?.isPlatformAdmin ? 'Platform admin' : user?.roles?.includes('ADMIN') ? 'Administrator' : (user?.roles || []).find((r) => /^[A-Z_]+$/.test(r)) || 'User'}</p>
             </div>
             <FiChevronDown size={12} className={`text-secondary-400 hidden md:block transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -151,12 +133,8 @@ export default function Navbar() {
           {profileOpen && (
             <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-secondary-800 rounded-xl shadow-xl border border-secondary-200 dark:border-secondary-700 py-1 z-50">
               <div className="px-4 py-3 border-b border-secondary-100 dark:border-secondary-700">
-                <p className="text-sm font-medium text-secondary-900 dark:text-white">{user?.username}</p>
-                <p className="text-xs text-secondary-400 mt-0.5">{user?.email}</p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <FiShield size={10} className="text-success-500" />
-                  <span className="text-[10px] text-success-600 font-medium">HIPAA Session Active</span>
-                </div>
+                <p className="text-sm font-medium text-secondary-900 dark:text-white truncate">{user?.username}</p>
+                <p className="text-xs text-secondary-400 mt-0.5 truncate">{user?.email}</p>
               </div>
               <div className="py-1">
                 <button onClick={() => { setProfileOpen(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-700 transition-colors">
