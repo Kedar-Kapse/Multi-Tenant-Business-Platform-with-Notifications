@@ -78,12 +78,23 @@ api.{$DOMAIN} {
 }
 
 auth.{$DOMAIN} {
-	# The Keycloak admin console is NOT exposed to the internet.
-	# Reach it through an SSH tunnel to port 8080 instead.
-	@kcAdmin path /admin /admin/*
-	respond @kcAdmin 404
-
-	reverse_proxy keycloak:8080
+	# The Keycloak admin console (/admin) is hidden from the internet: it answers
+	# 404 to everyone EXCEPT the IP addresses in KEYCLOAK_ADMIN_ALLOWED_IPS
+	# (server .env, space-separated, e.g. "203.0.113.7/32 198.51.100.0/24").
+	# Not set = nobody (127.0.0.1 never reaches Caddy from outside).
+	@kcAdminAllowed {
+		path /admin /admin/*
+		remote_ip {$KEYCLOAK_ADMIN_ALLOWED_IPS:127.0.0.1/32}
+	}
+	handle @kcAdminAllowed {
+		reverse_proxy keycloak:8080
+	}
+	handle /admin* {
+		respond 404
+	}
+	handle {
+		reverse_proxy keycloak:8080
+	}
 }
 
 # Main domain: no tenant in the address, so just say where to go.

@@ -18,6 +18,8 @@ services:
       - "443:443/udp"
     environment:
       - DOMAIN=${DOMAIN:?Set DOMAIN in .env, e.g. DOMAIN=kapse.online}
+      # IPs allowed to open the Keycloak admin console (https://auth.<domain>/admin); empty = nobody
+      - KEYCLOAK_ADMIN_ALLOWED_IPS=${KEYCLOAK_ADMIN_ALLOWED_IPS:-}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data        # certificates live here; keep it so restarts don't re-request them
