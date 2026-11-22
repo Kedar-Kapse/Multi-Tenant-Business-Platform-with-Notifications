@@ -1,4 +1,5 @@
 import api, { ACCESS_SECURITY } from './api';
+import keycloak from '../keycloak';
 
 const PORTAL_SWITCH = `${ACCESS_SECURITY}/api/auth/portal-switch`;
 
@@ -9,10 +10,11 @@ const portalService = {
   },
 
   switchToPortal: async (targetPortalKey) => {
-    const refreshToken = localStorage.getItem('patient_refresh_token');
+    // Make sure the refresh token handed to the other portal is current.
+    try { await keycloak.updateToken(30); } catch { /* the request below reports the failure */ }
     const res = await api.post(`${PORTAL_SWITCH}/generate`, {
       target_portal: targetPortalKey,
-      refresh_token: refreshToken,
+      refresh_token: keycloak.refreshToken,
     });
     return res.data;
   },

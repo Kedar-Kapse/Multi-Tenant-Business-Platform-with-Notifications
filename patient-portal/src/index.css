@@ -12,3 +12,12 @@ body {
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
 .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; }
+
+/* Dropdowns, date pickers and toasts fade in (shared design system, same as admin portal) */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }

@@ -1,25 +1,33 @@
 const COLORS = {
-  blue:   { bg: 'bg-blue-50 dark:bg-blue-900/20', icon: 'text-blue-600', ring: 'ring-blue-100' },
-  green:  { bg: 'bg-emerald-50 dark:bg-emerald-900/20', icon: 'text-emerald-600', ring: 'ring-emerald-100' },
-  amber:  { bg: 'bg-amber-50 dark:bg-amber-900/20', icon: 'text-amber-600', ring: 'ring-amber-100' },
-  rose:   { bg: 'bg-rose-50 dark:bg-rose-900/20', icon: 'text-rose-600', ring: 'ring-rose-100' },
-  teal:   { bg: 'bg-teal-50 dark:bg-teal-900/20', icon: 'text-teal-600', ring: 'ring-teal-100' },
-  purple: { bg: 'bg-purple-50 dark:bg-purple-900/20', icon: 'text-purple-600', ring: 'ring-purple-100' },
+  primary: { bg: 'bg-primary-50 dark:bg-primary-900/20', icon: 'text-primary-600 dark:text-primary-400' },
+  success: { bg: 'bg-success-50 dark:bg-success-700/20', icon: 'text-success-600 dark:text-success-400' },
+  warning: { bg: 'bg-warning-50 dark:bg-warning-700/20', icon: 'text-warning-600 dark:text-warning-400' },
+  urgent:  { bg: 'bg-urgent-50 dark:bg-urgent-900/20', icon: 'text-urgent-600 dark:text-urgent-400' },
+  neutral: { bg: 'bg-secondary-100 dark:bg-secondary-800', icon: 'text-secondary-600 dark:text-secondary-300' },
 };
+// Older color names used across pages.
+const ALIASES = { blue: 'primary', teal: 'primary', green: 'success', amber: 'warning', rose: 'urgent', purple: 'neutral' };
 
-export default function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', change, up }) {
-  const c = COLORS[color] || COLORS.blue;
+/** Compact on phones (2 per row fits at 375px), roomier from `sm`. */
+export default function StatCard({ title, value, subtitle, icon: Icon, color = 'primary', loading = false, onClick }) {
+  const c = COLORS[ALIASES[color] || color] || COLORS.primary;
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="bg-white dark:bg-secondary-900 rounded-2xl border border-secondary-200 dark:border-secondary-800 p-5 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-secondary-500 uppercase tracking-wider">{title}</p>
-          <p className="text-2xl font-bold text-secondary-900 dark:text-white mt-1">{value}</p>
-          {change && <p className={`text-xs font-medium mt-1 ${up ? 'text-emerald-600' : 'text-rose-600'}`}>{change}</p>}
-          {subtitle && <p className="text-xs text-secondary-400 mt-1">{subtitle}</p>}
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={`w-full text-left min-w-0 bg-white dark:bg-secondary-900 rounded-2xl border border-secondary-200 dark:border-secondary-800 p-3.5 sm:p-5 shadow-sm ${onClick ? 'hover:border-primary-300 dark:hover:border-primary-700 transition' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] sm:text-xs font-medium text-secondary-500 uppercase tracking-wide truncate">{title}</p>
+          {loading
+            ? <div className="h-7 w-16 mt-1.5 rounded-md bg-secondary-100 dark:bg-secondary-800 animate-pulse" />
+            : <p className="text-lg sm:text-2xl font-bold text-secondary-900 dark:text-white mt-1 truncate">{value}</p>}
+          {subtitle && <p className="text-[11px] sm:text-xs text-secondary-400 mt-1 truncate">{subtitle}</p>}
         </div>
-        {Icon && <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center`}><Icon className={c.icon} size={20} /></div>}
+        {Icon && <div className={`hidden min-[400px]:flex w-9 h-9 sm:w-11 sm:h-11 rounded-xl ${c.bg} items-center justify-center flex-shrink-0`}><Icon className={c.icon} size={18} /></div>}
       </div>
-    </div>
+    </Tag>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiShield, FiMail, FiPhone, FiArrowRight, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiShield, FiMail, FiArrowRight, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
 import { registrationApi } from '../../services/registrationService';
 
 const PURPOSE = 'FORGOT_PASSWORD';
@@ -10,7 +10,7 @@ export default function ForgotPasswordPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
-  const [channel, setChannel] = useState('EMAIL');
+  const channel = 'EMAIL';
   const [otp, setOtp] = useState('');
   const [verificationToken, setVerificationToken] = useState(null);
   const [password, setPassword] = useState('');
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       await registrationApi.requestOtp(email, channel, PURPOSE);
-      setInfo(`OTP sent via ${channel === 'EMAIL' ? 'email' : 'voice call'}.`);
+      setInfo('We emailed you a verification code.');
       setStep(2); setCooldown(30);
     } catch (err) {
       setError(err?.response?.data?.message || 'Could not send OTP.');
@@ -84,9 +84,9 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#dce2ee] p-4">
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-secondary-100 p-3 sm:p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="bg-primary-600 text-white px-8 py-6">
+        <div className="bg-primary-600 text-white px-6 sm:px-8 py-6">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"><FiShield size={14} /></div>
             <span className="text-base font-bold">KayCare Patient Portal</span>
@@ -99,9 +99,9 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        <div className="p-8">
-          {error && <div className="mb-3 p-3 rounded-lg border bg-urgent-50 border-urgent-200 text-urgent-700 text-sm">{error}</div>}
-          {info && <div className="mb-3 p-3 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 text-sm">{info}</div>}
+        <div className="p-6 sm:p-8">
+          {error && <div role="alert" className="mb-3 p-3 rounded-lg border bg-urgent-50 border-urgent-200 text-urgent-700 text-sm">{error}</div>}
+          {info && <div className="mb-3 p-3 rounded-lg border bg-success-50 border-success-200 text-success-700 text-sm">{info}</div>}
 
           {step === 1 && (
             <div className="space-y-4">
@@ -109,11 +109,8 @@ export default function ForgotPasswordPage() {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                      className="w-full px-4 py-3 rounded-lg border border-secondary-200 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
                      placeholder="your.email@example.com" />
-              <label className="block text-sm font-semibold text-secondary-800">Send OTP via</label>
-              <div className="grid grid-cols-2 gap-3">
-                <ChannelBtn active={channel === 'EMAIL'} onClick={() => setChannel('EMAIL')} icon={FiMail} label="Email" />
-                <ChannelBtn active={channel === 'CALL'} onClick={() => setChannel('CALL')} icon={FiPhone} label="Voice Call" />
-              </div>
+              {/* Only email for now: the "Voice Call" channel is a mock on the backend. */}
+              <p className="flex items-center gap-2 text-xs text-secondary-500"><FiMail size={13} /> We'll email you a verification code.</p>
               <button onClick={requestOtp} disabled={loading}
                       className="w-full py-3 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? <Spinner /> : <>Send OTP <FiArrowRight size={14} /></>}
@@ -162,17 +159,6 @@ export default function ForgotPasswordPage() {
   );
 }
 
-function ChannelBtn({ active, onClick, icon: Icon, label }) {
-  return (
-    <button onClick={onClick}
-            className={`flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-medium transition ${
-              active ? 'bg-primary-50 border-primary-500 text-primary-700'
-                     : 'bg-white border-secondary-200 text-secondary-600 hover:border-primary-300'
-            }`}>
-      <Icon size={14} /> {label}
-    </button>
-  );
-}
 
 function PwField({ label, value, onChange, show, toggle }) {
   return (

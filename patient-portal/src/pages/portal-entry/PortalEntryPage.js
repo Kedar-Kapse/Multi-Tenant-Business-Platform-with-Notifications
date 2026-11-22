@@ -1,75 +1,40 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import { useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FiX } from 'react-icons/fi';
 import useAuthStore from '../../store/authStore';
-import { TENANT_ID, API_BASE_URL } from '../../runtimeConfig';
+import Splash from '../../components/Splash';
 
-const GATEWAY = API_BASE_URL;
-const DEFAULT_TENANT = TENANT_ID;
-
+/**
+ * Landing page for "Switch portal". The one-time code is exchanged by
+ * authStore.init() BEFORE keycloak-js starts, and the tokens are handed straight
+ * to keycloak.init({ token, refreshToken }) -- nothing is kept in localStorage.
+ * This page only routes the user on, or explains what went wrong.
+ */
 export default function PortalEntryPage() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const refreshUser = useAuthStore((s) => s.refreshUser);
-  const [error, setError] = useState(null);
+  const user = useAuthStore((s) => s.user);
+  const error = useAuthStore((s) => s.portalEntryError);
+  const done = useRef(false); // StrictMode runs effects twice in development
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    if (!code) {
-      setError('No switch code provided');
-      return;
-    }
+    if (done.current || !user) return;
+    done.current = true;
+    navigate('/', { replace: true });
+  }, [user, navigate]);
 
-    const exchangeCode = async () => {
-      try {
-        const res = await axios.post(
-          `${GATEWAY}/access-security/api/auth/portal-switch/exchange`,
-          { code },
-          { headers: { 'Content-Type': 'application/json', 'X-TENANT-ID': DEFAULT_TENANT } }
-        );
-
-        const data = res.data;
-        if (data.access_token) {
-          localStorage.setItem('patient_access_token', data.access_token);
-          localStorage.setItem('patient_refresh_token', data.refresh_token);
-          refreshUser();
-          navigate('/', { replace: true });
-        } else {
-          setError('Invalid response from server');
-        }
-      } catch (err) {
-        const msg = err.response?.data?.message || 'Failed to authenticate. The switch code may have expired.';
-        setError(msg);
-      }
-    };
-
-    exchangeCode();
-  }, [searchParams, navigate, refreshUser]);
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Portal Switch Failed</h2>
-          <p className="text-sm text-gray-600 mb-6">{error}</p>
-          <a href="/login" className="inline-block px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
-            Go to Login
-          </a>
-        </div>
-      </div>
-    );
-  }
+  if (user) return <Splash label="Opening your portal…" />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="w-10 h-10 mx-auto mb-4 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-gray-600">Switching portal, please wait...</p>
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-secondary-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-secondary-200 p-6 sm:p-8 text-center">
+        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-urgent-100 flex items-center justify-center">
+          <FiX className="text-urgent-600" size={22} />
+        </div>
+        <h2 className="text-lg font-semibold text-secondary-900 mb-2">Portal switch failed</h2>
+        <p className="text-sm text-secondary-600 mb-6 break-words">{error || 'We could not sign you in from the other portal.'}</p>
+        <Link to="/login" replace className="inline-block px-6 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+          Go to sign in
+        </Link>
       </div>
     </div>
   );

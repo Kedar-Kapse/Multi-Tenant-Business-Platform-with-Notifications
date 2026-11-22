@@ -1,46 +1,67 @@
-import api, { BUSINESS, ACCESS_SECURITY } from './api';
+import api, { BUSINESS, ACCESS_SECURITY, NOTIFICATIONS } from './api';
+
+// Every call here is a patient "me" endpoint: the backend takes the patient's
+// identity from the login token. Never send patientId / sender fields.
+
+const data = (r) => r.data;
 
 export const appointmentApi = {
-  getAll:      (patientId) => api.get(`${BUSINESS}/api/appointments`, { params: { patientId } }).then(r => r.data),
-  getUpcoming: (patientId) => api.get(`${BUSINESS}/api/appointments/upcoming`, { params: { patientId } }).then(r => r.data),
-  getSlots:    (providerId, date) => api.get(`${BUSINESS}/api/appointments/slots`, { params: { providerId, date } }).then(r => r.data),
-  book:        (data) => api.post(`${BUSINESS}/api/appointments`, data).then(r => r.data),
-  update:      (id, data) => api.put(`${BUSINESS}/api/appointments/${id}`, data).then(r => r.data),
-  cancel:      (id) => api.patch(`${BUSINESS}/api/appointments/${id}/cancel`).then(r => r.data),
-  summary:     (patientId) => api.get(`${BUSINESS}/api/appointments/summary`, { params: { patientId } }).then(r => r.data),
+  mine:     () => api.get(`${BUSINESS}/api/appointments/me`).then(data),
+  upcoming: () => api.get(`${BUSINESS}/api/appointments/me`, { params: { upcoming: true } }).then(data),
+  summary:  () => api.get(`${BUSINESS}/api/appointments/me/summary`).then(data),
+  get:      (id) => api.get(`${BUSINESS}/api/appointments/${id}`).then(data),
+  slots:    (providerId, date) => api.get(`${BUSINESS}/api/appointments/slots`, { params: { providerId, date } }).then(data),
+  /** { providerId, providerName, providerSpecialty?, appointmentDate, startTime, type, mode?, reason? } */
+  book:     (body) => api.post(`${BUSINESS}/api/appointments`, body).then(data),
+  cancel:   (id) => api.patch(`${BUSINESS}/api/appointments/${id}/cancel`).then(data),
 };
 
 export const invoiceApi = {
-  getAll:    (patientId) => api.get(`${BUSINESS}/api/invoices`, { params: { patientId } }).then(r => r.data),
-  pay:       (id, method) => api.patch(`${BUSINESS}/api/invoices/${id}/pay`, { paymentMethod: method }).then(r => r.data),
-  summary:   (patientId) => api.get(`${BUSINESS}/api/invoices/summary`, { params: { patientId } }).then(r => r.data),
+  mine:    () => api.get(`${BUSINESS}/api/invoices/me`).then(data),
+  summary: () => api.get(`${BUSINESS}/api/invoices/me/summary`).then(data),
 };
 
 export const documentApi = {
-  getAll:    (patientId, category) => api.get(`${BUSINESS}/api/patient-documents`, { params: { patientId, ...(category ? { category } : {}) } }).then(r => r.data),
-  upload:    (data) => api.post(`${BUSINESS}/api/patient-documents`, data).then(r => r.data),
-  delete:    (id) => api.delete(`${BUSINESS}/api/patient-documents/${id}`).then(r => r.data),
+  mine: (category) => api.get(`${BUSINESS}/api/patient-documents/me`, { params: category ? { category } : {} }).then(data),
+};
+
+export const clinicalNoteApi = {
+  mine: () => api.get(`${BUSINESS}/api/clinical-notes/me`).then(data),
 };
 
 export const messageApi = {
-  getAll:       (userId) => api.get(`${BUSINESS}/api/messages`, { params: { userId } }).then(r => r.data),
-  getUnread:    (userId) => api.get(`${BUSINESS}/api/messages/unread`, { params: { userId } }).then(r => r.data),
-  getThread:    (threadId) => api.get(`${BUSINESS}/api/messages/thread/${threadId}`).then(r => r.data),
-  unreadCount:  (userId) => api.get(`${BUSINESS}/api/messages/unread-count`, { params: { userId } }).then(r => r.data),
-  send:         (data) => api.post(`${BUSINESS}/api/messages`, data).then(r => r.data),
-  markRead:     (id) => api.patch(`${BUSINESS}/api/messages/${id}/read`).then(r => r.data),
+  mine:        () => api.get(`${BUSINESS}/api/messages`).then(data),
+  unreadCount: () => api.get(`${BUSINESS}/api/messages/unread-count`).then(data),
+  thread:      (threadId) => api.get(`${BUSINESS}/api/messages/thread/${encodeURIComponent(threadId)}`).then(data),
+  markThreadRead: (threadId) => api.patch(`${BUSINESS}/api/messages/thread/${encodeURIComponent(threadId)}/read`).then(data),
+  /** { recipientId, recipientName, recipientRole, subject, body, threadId? } */
+  send:        (body) => api.post(`${BUSINESS}/api/messages`, body).then(data),
 };
 
 export const providerApi = {
-  getAll: (page = 0, size = 20) => api.get(`${ACCESS_SECURITY}/api/admin/v1/staff`, { params: { page, size, sortBy: 'createdAt', sortDir: 'desc' } }).then(r => r.data),
-  search: (query, role) => api.get(`${ACCESS_SECURITY}/api/admin/v1/staff/search`, { params: { query, role, page: 0, size: 20 } }).then(r => r.data),
+  /** Care-team directory: Page { content:[{id, firstName, lastName, role, specialization, experienceYears, profilePhotoUrl}], ... } */
+  directory: ({ query, role, page = 0, size = 24 } = {}, config) =>
+    api.get(`${ACCESS_SECURITY}/api/providers`, {
+      params: { ...(query ? { query } : {}), ...(role ? { role } : {}), page, size },
+      ...config,
+    }).then(data),
 };
 
-export const ehrApi = {
-  getTemplates: () => api.get(`${BUSINESS}/api/ehr/templates`).then(r => r.data),
+export const notificationApi = {
+  list:        ({ unreadOnly, type, page = 0, size = 20 } = {}) =>
+    api.get(`${NOTIFICATIONS}/api/notifications`, {
+      params: { ...(unreadOnly ? { unreadOnly: true } : {}), ...(type ? { type } : {}), page, size },
+    }).then(data),
+  unreadCount: () => api.get(`${NOTIFICATIONS}/api/notifications/unread-count`).then(data),
+  markRead:    (id) => api.patch(`${NOTIFICATIONS}/api/notifications/${id}/read`).then(data),
+  markAllRead: () => api.patch(`${NOTIFICATIONS}/api/notifications/read-all`).then(data),
+  remove:      (id) => api.delete(`${NOTIFICATIONS}/api/notifications/${id}`).then(data),
 };
 
 export const profileApi = {
-  get:    () => api.get(`${BUSINESS}/api/patients/me`).then(r => r.data),
-  update: (data) => api.patch(`${BUSINESS}/api/patients/me`, data).then(r => r.data),
+  get:    () => api.get(`${BUSINESS}/api/patients/me`).then(data),
+  update: (body) => api.patch(`${BUSINESS}/api/patients/me`, body).then(data),
 };
+
+/** Display name for a directory entry. */
+export const providerName = (p) => [p?.firstName, p?.lastName].filter(Boolean).join(' ') || 'Care team member';

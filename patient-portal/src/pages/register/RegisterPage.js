@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { FiShield, FiMail, FiPhone, FiArrowRight, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiShield, FiMail, FiArrowRight, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
 import { registrationApi } from '../../services/registrationService';
 
 const PURPOSE = 'REGISTRATION';
@@ -12,7 +12,7 @@ export default function RegisterPage() {
 
   const [step, setStep] = useState(1); // 1: choose channel, 2: enter OTP, 3: set password
   const [email, setEmail] = useState(params.get('email') || '');
-  const [channel, setChannel] = useState('EMAIL');
+  const channel = 'EMAIL';
   const [otp, setOtp] = useState('');
   const [verificationToken, setVerificationToken] = useState(null);
   const [password, setPassword] = useState('');
@@ -39,7 +39,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await registrationApi.requestOtp(email, channel, PURPOSE);
-      setInfo(`OTP sent via ${channel === 'EMAIL' ? 'email' : 'voice call'}. It expires in 60 seconds.`);
+      setInfo('We emailed you a verification code. It expires in 60 seconds.');
       setStep(2);
       setCooldown(30);
     } catch (err) {
@@ -92,9 +92,9 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#dce2ee] p-4">
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-secondary-100 p-3 sm:p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="bg-primary-600 text-white px-8 py-6">
+        <div className="bg-primary-600 text-white px-6 sm:px-8 py-6">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"><FiShield size={14} /></div>
             <span className="text-base font-bold">KayCare Patient Portal</span>
@@ -102,12 +102,12 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-bold">Create your account</h1>
           <p className="text-primary-100 text-sm mt-1">
             {step === 1 && 'Confirm your email and we\'ll send you a verification code.'}
-            {step === 2 && `Enter the 6-digit code we sent via ${channel === 'EMAIL' ? 'email' : 'phone call'}.`}
+            {step === 2 && 'Enter the 6-digit code we emailed you.'}
             {step === 3 && 'Set a strong password to finish your registration.'}
           </p>
         </div>
 
-        <div className="p-8">
+        <div className="p-6 sm:p-8">
           <Stepper active={step} />
           {error && <Alert tone="error">{error}</Alert>}
           {info && <Alert tone="info">{info}</Alert>}
@@ -119,12 +119,8 @@ export default function RegisterPage() {
                        placeholder="your.email@example.com"
                        className="w-full px-4 py-3 rounded-lg border border-secondary-200 text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
               </Field>
-              <Field label="Send OTP via">
-                <div className="grid grid-cols-2 gap-3">
-                  <ChannelOption active={channel === 'EMAIL'} onClick={() => setChannel('EMAIL')} icon={FiMail} label="Email" />
-                  <ChannelOption active={channel === 'CALL'} onClick={() => setChannel('CALL')} icon={FiPhone} label="Voice Call" />
-                </div>
-              </Field>
+              {/* Only email for now: the "Voice Call" channel is a mock on the backend. */}
+              <p className="flex items-center gap-2 text-xs text-secondary-500"><FiMail size={13} /> We'll email you a verification code.</p>
               <button onClick={requestOtp} disabled={loading}
                       className="w-full py-3 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? <Spinner /> : <>Send OTP <FiArrowRight size={14} /></>}
@@ -146,7 +142,7 @@ export default function RegisterPage() {
                   {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
                 </button>
                 <button onClick={() => { setStep(1); resetMsg(); }} className="text-secondary-500 hover:underline">
-                  Change email / channel
+                  Change email
                 </button>
               </div>
               <button onClick={verifyOtp} disabled={loading}
@@ -203,17 +199,6 @@ function PasswordField({ label, value, onChange, show, toggle }) {
   );
 }
 
-function ChannelOption({ active, onClick, icon: Icon, label }) {
-  return (
-    <button onClick={onClick}
-            className={`flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-medium transition ${
-              active ? 'bg-primary-50 border-primary-500 text-primary-700'
-                     : 'bg-white border-secondary-200 text-secondary-600 hover:border-primary-300'
-            }`}>
-      <Icon size={14} /> {label}
-    </button>
-  );
-}
 
 function Stepper({ active }) {
   const steps = ['Email', 'OTP', 'Password'];
@@ -225,10 +210,10 @@ function Stepper({ active }) {
         return (
           <div key={label} className="flex-1 flex items-center">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-              done ? 'bg-emerald-500 text-white' : current ? 'bg-primary-600 text-white' : 'bg-secondary-200 text-secondary-500'
+              done ? 'bg-success-500 text-white' : current ? 'bg-primary-600 text-white' : 'bg-secondary-200 text-secondary-500'
             }`}>{done ? <FiCheck size={12} /> : n}</div>
             <span className={`ml-2 text-xs ${current ? 'text-primary-700 font-medium' : 'text-secondary-400'}`}>{label}</span>
-            {i < steps.length - 1 && <div className={`flex-1 h-0.5 mx-2 ${done ? 'bg-emerald-500' : 'bg-secondary-200'}`} />}
+            {i < steps.length - 1 && <div className={`flex-1 h-0.5 mx-2 ${done ? 'bg-success-500' : 'bg-secondary-200'}`} />}
           </div>
         );
       })}
@@ -239,8 +224,8 @@ function Stepper({ active }) {
 function Alert({ tone, children }) {
   const cls = tone === 'error'
     ? 'bg-urgent-50 border-urgent-200 text-urgent-700'
-    : 'bg-emerald-50 border-emerald-200 text-emerald-700';
-  return <div className={`mb-3 p-3 rounded-lg border text-sm ${cls}`}>{children}</div>;
+    : 'bg-success-50 border-success-200 text-success-700';
+  return <div role={tone === 'error' ? 'alert' : 'status'} className={`mb-3 p-3 rounded-lg border text-sm ${cls}`}>{children}</div>;
 }
 
 function Spinner() {

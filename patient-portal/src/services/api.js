@@ -36,3 +36,4 @@ api.interceptors.response.use(
 export default api;
 export const ACCESS_SECURITY = '/access-security';
 export const BUSINESS = '/business';
+export const NOTIFICATIONS = '/notifications';
