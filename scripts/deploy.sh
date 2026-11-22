@@ -7,6 +7,8 @@
 #
 # image-tag: the commit id GitHub built (exact version). Default: latest.
 # Rollback = run it again with an older commit id.
+# Every run first backs up the database to ~/backups (last 10 kept).
+# Restore one:  gunzip -c ~/backups/<file>.sql.gz | docker exec -i postgres psql -U postgres platform_db
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +17,17 @@ export IMAGE_TAG="${1:-${IMAGE_TAG:-latest}}"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 echo "==> Deploying image tag: $IMAGE_TAG"
+
+# Back up the database before anything changes: new versions may run database
+# migrations (Flyway). Keeps the last 10 backups in ~/backups.
+if docker ps --format '{{.Names}}' | grep -qx postgres; then
+  mkdir -p "$HOME/backups"
+  backup="$HOME/backups/platform_db-$(date -u +%Y%m%d-%H%M%S)-${IMAGE_TAG:0:7}.sql.gz"
+  echo "==> Backing up the database to $backup"
+  docker exec postgres sh -c 'pg_dump -U "${POSTGRES_USER:-postgres}" "${POSTGRES_DB:-platform_db}"' | gzip > "$backup"
+  [ -s "$backup" ] || { echo "Database backup is empty - stopping the deploy" >&2; exit 1; }
+  ls -1t "$HOME"/backups/platform_db-*.sql.gz | tail -n +11 | xargs -r rm -f
+fi
 
 echo "==> Downloading images"
 $COMPOSE pull --quiet
