@@ -7,7 +7,8 @@
 #
 # image-tag: the commit id GitHub built (exact version). Default: latest.
 # Rollback = run it again with an older commit id.
-# Every run first backs up the database to ~/backups (last 10 kept).
+# Every run first reads the secrets from AWS Secrets Manager (kaycare/<env>) and
+# backs up the database to ~/backups (last 10 kept).
 # Restore one:  gunzip -c ~/backups/<file>.sql.gz | docker exec -i postgres psql -U postgres platform_db
 
 set -euo pipefail
@@ -17,6 +18,56 @@ export IMAGE_TAG="${1:-${IMAGE_TAG:-latest}}"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 echo "==> Deploying image tag: $IMAGE_TAG"
+
+# ---------------------------------------------------------------------------
+# Secrets: read from AWS Secrets Manager at deploy time (one secret per
+# environment, e.g. "kaycare/prod"). The server's IAM role is the only
+# permission needed -- no password lives in a file or in Git.
+# They are exported for this run only, so Docker Compose picks them up; the
+# older copy in .env (if any) is used only when the secret cannot be read.
+# ---------------------------------------------------------------------------
+env_value() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+DEPLOY_ENV="${DEPLOY_ENV:-$(env_value DEPLOY_ENV)}"; DEPLOY_ENV="${DEPLOY_ENV:-prod}"
+SECRET_ID="${SECRET_ID:-kaycare/$DEPLOY_ENV}"
+AWS_REGION="${AWS_REGION:-$(env_value AWS_REGION)}"; AWS_REGION="${AWS_REGION:-ap-southeast-2}"
+SECRET_KEYS="POSTGRES_PASSWORD KEYCLOAK_ADMIN KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_AUTH_CLIENT_SECRET MAIL_PASSWORD PCC_API_CLIENT_SECRET"
+
+aws_cli() {   # the AWS CLI if installed, otherwise the official one in Docker
+  if command -v aws >/dev/null 2>&1; then aws "$@"
+  else docker run --rm --network host amazon/aws-cli "$@"; fi
+}
+
+if secret_json=$(aws_cli secretsmanager get-secret-value --region "$AWS_REGION" \
+      --secret-id "$SECRET_ID" --query SecretString --output text 2>/dev/null) && [ -n "$secret_json" ]; then
+  # Only the known names are accepted, so the secret can never set PATH etc.
+  eval "$(SECRET_KEYS="$SECRET_KEYS" python3 -c '
+import json, os, shlex, sys
+allowed = os.environ["SECRET_KEYS"].split()
+for k, v in json.load(sys.stdin).items():
+    if k in allowed:
+        print(f"export {k}={shlex.quote(str(v))}")
+' <<<"$secret_json")"
+  echo "==> Secrets loaded from AWS Secrets Manager ($SECRET_ID)"
+else
+  echo "==> WARNING: could not read secret '$SECRET_ID' -- using the values in .env instead"
+fi
+unset secret_json
+
+# Stop BEFORE touching anything if a required secret is missing.
+if ! $COMPOSE config -q 2>/tmp/compose-config.err; then
+  echo "Cannot deploy: a required setting or secret is missing:" >&2
+  sed 's/^/  /' /tmp/compose-config.err >&2
+  exit 1
+fi
+
+# Warn about the well-known default values (published in the public repo).
+for pair in "POSTGRES_PASSWORD:postgres" "KEYCLOAK_ADMIN_PASSWORD:admin" "KEYCLOAK_AUTH_CLIENT_SECRET:hospital-a-secret-change-me"; do
+  name="${pair%%:*}"; weak="${pair#*:}"
+  value="${!name:-$(env_value "$name")}"
+  if [ "$value" = "$weak" ]; then
+    echo "==> WARNING: $name still has the well-known default value -- change it"
+  fi
+done
 
 # Back up the database before anything changes: new versions may run database
 # migrations (Flyway). Keeps the last 10 backups in ~/backups.

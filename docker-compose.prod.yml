@@ -39,6 +39,9 @@ services:
       # Keycloak sits behind Caddy: trust its X-Forwarded-* headers so
       # login pages and tokens use https://auth.<domain>.
       - KC_PROXY=edge
+      # No weak fallbacks in production: a missing secret stops the start.
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
 
   # Our services run the images GitHub Actions built and pushed to Docker Hub
   # (.github/workflows/docker-publish.yml) -- the server builds nothing.
@@ -56,21 +59,31 @@ services:
       - PORTAL_ADMIN_URL=https://{tenant}.admin.${DOMAIN}
       - PORTAL_PROVIDER_URL=https://{tenant}.app.${DOMAIN}
       - PORTAL_PATIENT_URL=https://{tenant}.patient.${DOMAIN}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
+      - KEYCLOAK_AUTH_CLIENT_SECRET=${KEYCLOAK_AUTH_CLIENT_SECRET:?KEYCLOAK_AUTH_CLIENT_SECRET is missing - deploy with scripts/deploy.sh}
   api-gateway:
     image: ${DOCKERHUB_USERNAME}/api-gateway:${IMAGE_TAG:-latest}
     restart: unless-stopped
   admin-service:
     image: ${DOCKERHUB_USERNAME}/admin-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    environment:
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
   business-service:
     image: ${DOCKERHUB_USERNAME}/business-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       # Link in the "complete your registration" email: the patient's hospital portal.
       - PATIENT_PORTAL_URL_TEMPLATE=https://{tenant}.patient.${DOMAIN}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
   notification-service:
     image: ${DOCKERHUB_USERNAME}/notification-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    environment:
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
   admin-portal:
     image: ${DOCKERHUB_USERNAME}/admin-portal:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -84,6 +97,8 @@ services:
   # Infrastructure from the base file: also come back after a reboot or crash.
   postgres:
     restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
   redis:
     restart: unless-stopped
   kafka:

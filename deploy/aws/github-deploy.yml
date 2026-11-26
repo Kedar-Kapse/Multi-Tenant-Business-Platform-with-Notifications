@@ -17,6 +17,13 @@ Parameters:
     Type: String
     Default: kedar-patient-reports-2026
     Description: S3 bucket for patient report files (business-service)
+  SecretName:
+    Type: String
+    Default: kaycare/prod
+    Description: >
+      Secrets Manager secret holding this server's passwords (create it first:
+      Secrets Manager -> Store a new secret -> Other type -> plain text JSON).
+      The server may read ONLY this one secret. QA gets its own (kaycare/qa).
   CreateGitHubOidcProvider:
     Type: String
     Default: "true"
@@ -89,6 +96,14 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
+        - PolicyName: read-own-secret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue   # read only, this one secret
+                # AWS adds 6 random characters to a secret's ARN, hence the "-??????"
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-??????
         - PolicyName: patient-reports-bucket
           PolicyDocument:
             Version: "2012-10-17"
