@@ -1,8 +1,8 @@
 name: Build and deploy
 
 # Every push to main:
-#   part A (build-and-push): build one image per service, upload to Docker Hub.
-#   part B (deploy):         tell the server to download them and restart.
+#   part A (build-and-push): build one image per service, upload to ECR (and Docker Hub).
+#   part B (deploy):         after a person approves, tell the server to download them and restart.
 # The server builds nothing, and nobody has to SSH in.
 
 on:
@@ -106,6 +106,12 @@ jobs:
     needs: build-and-push
     if: github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != ''
     runs-on: ubuntu-latest
+    # Approval before prod: GitHub pauses here until a required reviewer of the
+    # "production" environment clicks "Approve and deploy" (Settings -> Environments).
+    # The AWS deploy role only trusts this environment, so nothing can skip the approval.
+    environment:
+      name: production
+      url: https://platform.admin.kapse.online
     concurrency: deploy-production     # never two deploys at the same time
     permissions:
       id-token: write                  # lets GitHub ask AWS for a temporary login

@@ -46,8 +46,9 @@ Resources:
         - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
 
   # --- 2. The role GitHub becomes while deploying. ---
-  # Only the main branch of this one repository can use it, and it can only
-  # run commands on this one server -- nothing else in the account.
+  # Only a job in this repository's "production" GitHub environment can use it --
+  # that environment needs a person's approval first. And it can only run
+  # commands on this one server -- nothing else in the account.
   GitHubDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -64,7 +65,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:environment:production
       Policies:
         - PolicyName: run-deploy-on-one-server
           PolicyDocument:

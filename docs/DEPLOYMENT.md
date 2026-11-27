@@ -51,6 +51,17 @@ KEYCLOAK_ADMIN_PASSWORD=<strong password>
 5. Check: **EC2 → instance → Connect → Session Manager → Connect** opens a terminal.
    Once that works, delete the port 22 rule from the security group — SSH is no longer needed.
 
+## Approval before prod
+
+The deploy job runs in the GitHub environment **production**, which has a required
+reviewer. After the images are built, the run pauses at "Waiting for review"; open the
+run in the Actions tab -> **Review deployments** -> tick production -> **Approve and deploy**.
+The AWS deploy role trusts only that environment (`repo:<owner>/<repo>:environment:production`),
+so no workflow can deploy without the approval.
+
+Set up once: GitHub -> Settings -> Environments -> New environment `production` ->
+Required reviewers: yourself; Deployment branches: `main` only.
+
 ## Images: private AWS registry (ECR)
 
 The images can be stored in **Amazon ECR** (private, in our AWS account, access by IAM role
