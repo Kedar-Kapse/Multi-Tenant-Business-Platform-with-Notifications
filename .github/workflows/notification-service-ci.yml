@@ -2,13 +2,13 @@ name: notification-service CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'notification-service/**'
       - 'platform-core/**'
       - 'pom.xml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'notification-service/**'
       - 'platform-core/**'

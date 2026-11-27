@@ -13,7 +13,6 @@
 	</parent>
 
 	<artifactId>api-gateway</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
 	<name>api-gateway</name>
 	<description>API Gateway using Spring Cloud Gateway</description>
 

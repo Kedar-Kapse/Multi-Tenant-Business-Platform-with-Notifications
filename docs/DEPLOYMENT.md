@@ -51,6 +51,41 @@ KEYCLOAK_ADMIN_PASSWORD=<strong password>
 5. Check: **EC2 → instance → Connect → Session Manager → Connect** opens a terminal.
    Once that works, delete the port 22 rule from the security group — SSH is no longer needed.
 
+## Versions, branches and releases
+
+One version for the whole platform, written only in the root `pom.xml`.
+`bash scripts/version.sh set X.Y.Z` copies it to every service, service-registry and the
+3 portals (package.json + lock); `bash scripts/version.sh check` runs in the pipeline.
+
+| Branch | Version in pom | Pipeline |
+|---|---|---|
+| `develop` | `1.1.0-SNAPSHOT` | tests + build check (image tag `1.1.0-SNAPSHOT-<commit>`), no deploy |
+| `release/1.1.0` | `1.1.0` | tests + build check (`1.1.0-rc-<commit>`), no deploy |
+| `main` | `1.1.0` | build + push `1.1.0` -> **approval** -> deploy -> git tag `v1.1.0` |
+
+The pipeline refuses: `-SNAPSHOT` on main, a version already released (tag exists),
+a release branch whose name differs from the pom version, files with different versions.
+
+**Release 1.1.0:**
+```bash
+git switch develop && git pull
+git switch -c release/1.1.0
+bash scripts/version.sh set 1.1.0
+git commit -am "release 1.1.0" && git push -u origin release/1.1.0
+# test it; only bug fixes go into this branch
+# then merge release/1.1.0 into main (pull request) -> approve the deploy -> tag v1.1.0
+git switch develop && git merge release/1.1.0
+bash scripts/version.sh set 1.2.0-SNAPSHOT && git commit -am "start 1.2.0" && git push
+```
+
+**Hotfix 1.1.1:** branch `hotfix/1.1.1` from `main`, `bash scripts/version.sh set 1.1.1`, fix,
+merge into `main` (approve) and into `develop`.
+
+**Rollback:** Actions -> Build and deploy -> Run workflow (branch main) ->
+`rollback_version` = an older release, e.g. `1.0.0` -> approve. No rebuild; the images of that
+version are deployed again. (On the server by hand: `bash scripts/deploy.sh 1.0.0`.)
+`deploy.sh` writes the running version to `.env` as `IMAGE_TAG`.
+
 ## Approval before prod
 
 The deploy job runs in the GitHub environment **production**, which has a required

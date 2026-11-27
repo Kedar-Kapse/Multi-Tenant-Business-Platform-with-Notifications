@@ -114,7 +114,7 @@
         <dependency>
             <groupId>com.kedar.kapse</groupId>
             <artifactId>platform-core</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

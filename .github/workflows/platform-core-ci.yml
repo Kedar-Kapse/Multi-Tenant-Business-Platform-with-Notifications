@@ -2,13 +2,13 @@ name: platform-core CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'platform-core/**'
       - 'pom.xml'
       - '.github/workflows/platform-core-ci.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'platform-core/**'
       - 'pom.xml'

@@ -5,8 +5,9 @@
 # through AWS Systems Manager) -- nobody needs to SSH in. By hand it is:
 #   cd ~/app && git pull --ff-only && bash scripts/deploy.sh [image-tag]
 #
-# image-tag: the commit id GitHub built (exact version). Default: latest.
-# Rollback = run it again with an older commit id.
+# image-tag: the version to run, e.g. 1.1.0 (or a commit id). Default: the one in .env,
+# else latest. Rollback = run it again with an older version (or use the pipeline's
+# "Run workflow" button with rollback_version).
 # Every run first reads the secrets from AWS Secrets Manager (kaycare/<env>) and
 # backs up the database to ~/backups (last 10 kept).
 # Restore one:  gunzip -c ~/backups/<file>.sql.gz | docker exec -i postgres psql -U postgres platform_db
@@ -14,7 +15,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export IMAGE_TAG="${1:-${IMAGE_TAG:-latest}}"
+export IMAGE_TAG="${1:-${IMAGE_TAG:-$(grep -E '^IMAGE_TAG=' .env 2>/dev/null | tail -1 | cut -d= -f2-)}}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 echo "==> Deploying image tag: $IMAGE_TAG"
@@ -97,6 +99,14 @@ $COMPOSE pull --quiet
 
 echo "==> Restarting changed containers"
 $COMPOSE up -d --no-build --remove-orphans
+
+# Remember which version is running, so a hand-run "docker compose up" later uses
+# the same images (not whatever old "latest" happens to be on the server).
+if grep -q '^IMAGE_TAG=' .env 2>/dev/null; then
+  sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=$IMAGE_TAG|" .env
+else
+  echo "IMAGE_TAG=$IMAGE_TAG" >> .env
+fi
 
 # A changed Caddyfile (from git pull) is not picked up by "up -d" -- the file is
 # mounted, not part of an image. Restart Caddy only when it really changed.

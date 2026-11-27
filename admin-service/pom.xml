@@ -10,8 +10,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<artifactId>admin-service</artifactId>
-	<version>1.0.0</version> <name>admin-service</name>
+	<artifactId>admin-service</artifactId> <name>admin-service</name>
 	<description>Admin Server for monitoring microservices</description>
 
 	<properties>
@@ -25,7 +24,7 @@
 		<dependency>
 			<groupId>com.kedar.kapse</groupId>
 			<artifactId>platform-core</artifactId>
-			<version>1.0.0</version>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

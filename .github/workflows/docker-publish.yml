@@ -1,20 +1,85 @@
 name: Build and deploy
 
-# Every push to main:
-#   part A (build-and-push): build one image per service, upload to ECR (and Docker Hub).
-#   part B (deploy):         after a person approves, tell the server to download them and restart.
+# Branches and what happens on a push:
+#   develop          -> check + build the images (no push, no deploy)   tag 1.1.0-SNAPSHOT-<commit>
+#   release/x.y.z    -> check + build the images (no push, no deploy)   tag x.y.z-rc-<commit>
+#   main             -> build + push the images, then WAIT for a person's approval,
+#                       deploy to production, and mark the release with the git tag vX.Y.Z
+# The version comes from ONE place, the root pom.xml (see scripts/version.sh).
+# Rollback: Actions -> Build and deploy -> Run workflow -> enter an older version.
 # The server builds nothing, and nobody has to SSH in.
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:   # also allows a manual "Run workflow" button in the Actions tab
+    branches: [ main, develop, 'release/**' ]
+  workflow_dispatch:
+    inputs:
+      rollback_version:
+        description: "Roll back only: an already released version to deploy again, e.g. 1.0.0. Leave empty for a normal run."
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
+  # Works out the version and the image tag, and stops early on mistakes.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      rollback: ${{ steps.v.outputs.rollback }}
+    steps:
+      - name: Get the code (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Every file has the same version
+        run: bash scripts/version.sh check
+
+      - name: Work out the version and image tag
+        id: v
+        env:
+          ROLLBACK: ${{ inputs.rollback_version }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          VERSION=$(bash scripts/version.sh get)
+          SHORT=${GITHUB_SHA::7}
+          if [ -n "$ROLLBACK" ]; then
+            [ "$GITHUB_REF" = "refs/heads/main" ] || fail "Roll back only from main."
+            git rev-parse -q --verify "refs/tags/v$ROLLBACK" >/dev/null \
+              || fail "Version $ROLLBACK was never released (no git tag v$ROLLBACK)."
+            VERSION=$ROLLBACK; TAG=$ROLLBACK; IS_ROLLBACK=true
+          else
+            IS_ROLLBACK=false
+            case "$GITHUB_REF" in
+              refs/heads/main)
+                case "$VERSION" in *-SNAPSHOT) fail "main must hold a released version, not $VERSION. Merge a release branch." ;; esac
+                if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+                  fail "Version $VERSION is already released (git tag v$VERSION exists). Raise it first: bash scripts/version.sh set X.Y.Z"
+                fi
+                TAG=$VERSION ;;
+              refs/heads/release/*)
+                case "$VERSION" in *-SNAPSHOT) fail "A release branch must hold the final version (no -SNAPSHOT), not $VERSION." ;; esac
+                [ "${GITHUB_REF#refs/heads/release/}" = "$VERSION" ] \
+                  || fail "Branch ${GITHUB_REF#refs/heads/} does not match the version $VERSION in pom.xml."
+                TAG="$VERSION-rc-$SHORT" ;;
+              *)
+                TAG="$VERSION-$SHORT" ;;
+            esac
+          fi
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "rollback=$IS_ROLLBACK"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Version $VERSION -> image tag \`$TAG\`$([ "$IS_ROLLBACK" = true ] && echo ' (roll back)')" >> "$GITHUB_STEP_SUMMARY"
+
   build-and-push:
+    needs: version
+    if: needs.version.outputs.rollback != 'true'      # a rollback re-uses existing images
     runs-on: ubuntu-latest
     permissions:
       id-token: write                  # lets GitHub ask AWS for a temporary login (ECR)
@@ -23,7 +88,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # dockerfile folder          -> image name on Docker Hub (mrkk07/<image>)
+          # dockerfile folder          -> image name (kaycare/<image> in ECR, mrkk07/<image> on Docker Hub)
           - { service: service-registry,        image: service-registry }
           - { service: access-security-service, image: access-service }
           - { service: api-gateway,             image: api-gateway }
@@ -33,6 +98,8 @@ jobs:
           - { service: admin-portal,            image: admin-portal }
           - { service: provider-portal,         image: provider-portal }
           - { service: patient-portal,          image: patient-portal }
+    env:
+      PUSH: ${{ github.ref == 'refs/heads/main' }}   # only main publishes images
 
     steps:
       # No settings are passed to the build: the portals work out the tenant,
@@ -42,6 +109,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
+        if: env.PUSH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -49,9 +117,8 @@ jobs:
 
       # Private AWS registry (ECR). Needs the repository variable AWS_ECR_PUSH_ROLE_ARN
       # (from deploy/aws/github-deploy.yml); GitHub gets a temporary login, no stored keys.
-      # While the variable is missing, only Docker Hub is used.
       - name: Log in to AWS (temporary, no stored keys)
-        if: vars.AWS_ECR_PUSH_ROLE_ARN != ''
+        if: env.PUSH == 'true' && vars.AWS_ECR_PUSH_ROLE_ARN != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ECR_PUSH_ROLE_ARN }}
@@ -59,52 +126,56 @@ jobs:
 
       - name: Log in to Amazon ECR
         id: ecr
-        if: vars.AWS_ECR_PUSH_ROLE_ARN != ''
+        if: env.PUSH == 'true' && vars.AWS_ECR_PUSH_ROLE_ARN != ''
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Two tags per registry: "latest" (newest) and the commit id (exact version, for rollback).
+      # Tags: the version (e.g. 1.1.0, what production runs), the commit id, and
+      # "latest" (only so a hand-run deploy without a version still works).
       - name: Work out the image tags
         id: tags
         env:
           DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           IMAGE: ${{ matrix.image }}
+          TAG: ${{ needs.version.outputs.tag }}
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           {
             echo "list<<EOF"
-            echo "$DOCKERHUB_USER/$IMAGE:latest"
-            echo "$DOCKERHUB_USER/$IMAGE:$GITHUB_SHA"
-            if [ -n "$ECR_REGISTRY" ]; then
-              echo "$ECR_REGISTRY/kaycare/$IMAGE:latest"
-              echo "$ECR_REGISTRY/kaycare/$IMAGE:$GITHUB_SHA"
+            if [ "$PUSH" = true ]; then
+              for repo in "$DOCKERHUB_USER/$IMAGE" ${ECR_REGISTRY:+"$ECR_REGISTRY/kaycare/$IMAGE"}; do
+                echo "$repo:$TAG"
+                echo "$repo:$GITHUB_SHA"
+                echo "$repo:latest"
+              done
+            else
+              echo "kaycare/$IMAGE:$TAG"     # build check only, nothing is uploaded
             fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build and push
+      - name: Build${{ env.PUSH == 'true' && ' and push' || ' (check only)' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.service }}/Dockerfile
-          push: true
+          push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.tags.outputs.list }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-  # Part B. GitHub can't SSH to the server (port 22 is closed to it, and the
-  # .pem key must never be stored in GitHub). Instead:
-  #   1. GitHub proves who it is to AWS (OIDC) and gets a temporary login for one
-  #      role that is ONLY allowed to run commands on this one server.
-  #      No AWS keys are stored anywhere.
-  #   2. AWS Systems Manager runs scripts/deploy.sh on the server for us.
-  # One-time AWS setup: deploy/aws/github-deploy.yml (see docs/DEPLOYMENT.md).
-  # Until the repository variables below exist, this job is skipped.
+  # GitHub can't SSH to the server (port 22 is closed, and no key is stored in GitHub).
+  # Instead GitHub proves who it is to AWS (OIDC), gets a temporary login for a role that
+  # may ONLY run commands on this one server, and AWS Systems Manager runs
+  # scripts/deploy.sh there. One-time AWS setup: deploy/aws/github-deploy.yml.
   deploy:
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    needs: [ version, build-and-push ]
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != '' &&
+      needs.version.result == 'success' &&
+      (needs.build-and-push.result == 'success' || needs.version.outputs.rollback == 'true')
     runs-on: ubuntu-latest
     # Approval before prod: GitHub pauses here until a required reviewer of the
     # "production" environment clicks "Approve and deploy" (Settings -> Environments).
@@ -119,6 +190,7 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      TAG: ${{ needs.version.outputs.tag }}
 
     steps:
       - name: Log in to AWS (temporary, no stored keys)
@@ -130,18 +202,18 @@ jobs:
       - name: Run the deploy on the server
         run: |
           # Runs as the ubuntu user in ~/app: get the latest compose/Caddy files,
-          # then switch to the images of exactly this commit.
-          SCRIPT="cd ~/app && git pull --ff-only --quiet && bash scripts/deploy.sh ${GITHUB_SHA}"
+          # then switch to the images of exactly this version.
+          SCRIPT="cd ~/app && git pull --ff-only --quiet && bash scripts/deploy.sh ${TAG}"
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "deploy ${GITHUB_SHA::7}" \
+            --comment "deploy ${TAG}" \
             --parameters "{\"commands\":[\"sudo -u ubuntu -H bash -c '$SCRIPT'\"],\"executionTimeout\":[\"1200\"]}" \
             --query Command.CommandId --output text)
           echo "Systems Manager command: $COMMAND_ID"
 
           # Wait for it to finish (up to 20 minutes), then show the server's output.
-          for i in $(seq 1 120); do
+          for _ in $(seq 1 120); do
             sleep 10
             STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" \
                        --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
@@ -152,3 +224,25 @@ jobs:
             --query '[StandardOutputContent, StandardErrorContent]' --output text
           echo "Result: $STATUS"
           [ "$STATUS" = "Success" ]
+
+  # After a successful production deploy, mark the commit as the release: git tag vX.Y.Z.
+  # (A rollback re-deploys an existing release, so it adds no tag.)
+  tag-release:
+    needs: [ version, deploy ]
+    if: needs.deploy.result == 'success' && needs.version.outputs.rollback != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write                  # to push the tag
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Tag the release
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release $VERSION (deployed to production)" "$GITHUB_SHA"
+          git push origin "v$VERSION"
+          echo "### Released v$VERSION" >> "$GITHUB_STEP_SUMMARY"

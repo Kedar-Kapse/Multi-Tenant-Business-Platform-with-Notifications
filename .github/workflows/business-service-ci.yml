@@ -2,14 +2,14 @@ name: business-service CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'business-service/**'
       - 'platform-core/**'
       - 'pom.xml'
       - '.github/workflows/business-service-ci.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'business-service/**'
       - 'platform-core/**'

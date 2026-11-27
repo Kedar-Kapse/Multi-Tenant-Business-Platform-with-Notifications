@@ -2,13 +2,13 @@ name: api-gateway CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'api-gateway/**'
       - 'platform-core/**'
       - 'pom.xml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'api-gateway/**'
       - 'platform-core/**'

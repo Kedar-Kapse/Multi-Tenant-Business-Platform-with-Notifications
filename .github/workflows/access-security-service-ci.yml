@@ -2,14 +2,14 @@ name: access-security-service CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'access-security-service/**'
       - 'platform-core/**'
       - 'pom.xml'
       - '.github/workflows/access-security-service-ci.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop, 'release/**' ]
     paths:
       - 'access-security-service/**'
       - 'platform-core/**'
