@@ -16,6 +16,9 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write                  # lets GitHub ask AWS for a temporary login (ECR)
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -44,19 +47,50 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Private AWS registry (ECR). Needs the repository variable AWS_ECR_PUSH_ROLE_ARN
+      # (from deploy/aws/github-deploy.yml); GitHub gets a temporary login, no stored keys.
+      # While the variable is missing, only Docker Hub is used.
+      - name: Log in to AWS (temporary, no stored keys)
+        if: vars.AWS_ECR_PUSH_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ECR_PUSH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        if: vars.AWS_ECR_PUSH_ROLE_ARN != ''
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Two tags: "latest" (newest) and the commit id (exact version, for rollback).
+      # Two tags per registry: "latest" (newest) and the commit id (exact version, for rollback).
+      - name: Work out the image tags
+        id: tags
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE: ${{ matrix.image }}
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          {
+            echo "list<<EOF"
+            echo "$DOCKERHUB_USER/$IMAGE:latest"
+            echo "$DOCKERHUB_USER/$IMAGE:$GITHUB_SHA"
+            if [ -n "$ECR_REGISTRY" ]; then
+              echo "$ECR_REGISTRY/kaycare/$IMAGE:latest"
+              echo "$ECR_REGISTRY/kaycare/$IMAGE:$GITHUB_SHA"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.service }}/Dockerfile
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ github.sha }}
+          tags: ${{ steps.tags.outputs.list }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 

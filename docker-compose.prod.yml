@@ -43,16 +43,19 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
 
-  # Our services run the images GitHub Actions built and pushed to Docker Hub
+  # Our services run the images GitHub Actions built and pushed
   # (.github/workflows/docker-publish.yml) -- the server builds nothing.
+  # IMAGE_PREFIX (server .env) says where they come from:
+  #   <account>.dkr.ecr.<region>.amazonaws.com/kaycare   -> private AWS registry (ECR)
+  #   not set                                            -> Docker Hub user DOCKERHUB_USERNAME
   # Deploy:  docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
   #          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
   # IMAGE_TAG=<commit sha> in .env pins an exact version (rollback); default latest.
   service-registry:
-    image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME in .env}/service-registry:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME:?Set IMAGE_PREFIX (or DOCKERHUB_USERNAME) in .env}}/service-registry:${IMAGE_TAG:-latest}
     restart: unless-stopped
   access-security-service:
-    image: ${DOCKERHUB_USERNAME}/access-service:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/access-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       # Portal switching sends the user to their own hospital's address.
@@ -63,15 +66,15 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
       - KEYCLOAK_AUTH_CLIENT_SECRET=${KEYCLOAK_AUTH_CLIENT_SECRET:?KEYCLOAK_AUTH_CLIENT_SECRET is missing - deploy with scripts/deploy.sh}
   api-gateway:
-    image: ${DOCKERHUB_USERNAME}/api-gateway:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/api-gateway:${IMAGE_TAG:-latest}
     restart: unless-stopped
   admin-service:
-    image: ${DOCKERHUB_USERNAME}/admin-service:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/admin-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
   business-service:
-    image: ${DOCKERHUB_USERNAME}/business-service:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/business-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       # Link in the "complete your registration" email: the patient's hospital portal.
@@ -79,19 +82,19 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
   notification-service:
-    image: ${DOCKERHUB_USERNAME}/notification-service:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/notification-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing - deploy with scripts/deploy.sh}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is missing - deploy with scripts/deploy.sh}
   admin-portal:
-    image: ${DOCKERHUB_USERNAME}/admin-portal:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/admin-portal:${IMAGE_TAG:-latest}
     restart: unless-stopped
   provider-portal:
-    image: ${DOCKERHUB_USERNAME}/provider-portal:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/provider-portal:${IMAGE_TAG:-latest}
     restart: unless-stopped
   patient-portal:
-    image: ${DOCKERHUB_USERNAME}/patient-portal:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-${DOCKERHUB_USERNAME}}/patient-portal:${IMAGE_TAG:-latest}
     restart: unless-stopped
 
   # Infrastructure from the base file: also come back after a reboot or crash.

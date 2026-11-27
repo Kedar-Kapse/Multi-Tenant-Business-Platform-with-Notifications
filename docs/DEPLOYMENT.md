@@ -6,7 +6,7 @@ How code gets from a `git push` to https://&lt;hospital&gt;.app.&lt;domain&gt;.
 git push (main)
    │
    ▼
-GitHub Actions ── build-and-push ──► Docker Hub   (9 images, tags: latest + commit id)
+GitHub Actions ── build-and-push ──► ECR (private) and/or Docker Hub   (9 images, tags: latest + commit id)
    │
    └─ deploy ── AWS login (OIDC, no keys) ──► Systems Manager ──► EC2 server
                                                    runs: git pull + scripts/deploy.sh <commit id>
@@ -50,6 +50,20 @@ KEYCLOAK_ADMIN_PASSWORD=<strong password>
    (can take a few minutes; if not, restart the agent once: `sudo snap restart amazon-ssm-agent`).
 5. Check: **EC2 → instance → Connect → Session Manager → Connect** opens a terminal.
    Once that works, delete the port 22 rule from the security group — SSH is no longer needed.
+
+## Images: private AWS registry (ECR)
+
+The images can be stored in **Amazon ECR** (private, in our AWS account, access by IAM role
+-- no registry password) instead of Docker Hub. `deploy/aws/github-deploy.yml` creates the 9
+repositories (`kaycare/<image>`), the role GitHub uses to push (`github-ecr-push`) and lets
+the server pull. Switching over:
+
+1. Update the CloudFormation stack with the new file (Outputs show the two values below).
+2. GitHub -> Settings -> Variables: `AWS_ECR_PUSH_ROLE_ARN` = output `EcrPushRoleArn`.
+   From the next push, every image is pushed to **both** ECR and Docker Hub.
+3. On the server, add to `~/app/.env`: `IMAGE_PREFIX` = output `ImagePrefix`
+   (`<account>.dkr.ecr.<region>.amazonaws.com/kaycare`), then `bash scripts/deploy.sh`.
+   `deploy.sh` logs in to ECR with the server's role. Remove `IMAGE_PREFIX` to go back to Docker Hub.
 
 ## Secrets: never the ones from the repo
 

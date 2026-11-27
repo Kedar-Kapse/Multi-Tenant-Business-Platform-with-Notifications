@@ -80,6 +80,18 @@ if docker ps --format '{{.Names}}' | grep -qx postgres; then
   ls -1t "$HOME"/backups/platform_db-*.sql.gz | tail -n +11 | xargs -r rm -f
 fi
 
+# Images stored in AWS ECR need a login first (valid 12 hours). It uses the
+# server's IAM role, so no password is involved. Docker Hub needs nothing here.
+IMAGE_PREFIX="${IMAGE_PREFIX:-$(env_value IMAGE_PREFIX)}"
+case "$IMAGE_PREFIX" in
+  *.dkr.ecr.*.amazonaws.com*)
+    ecr_host="${IMAGE_PREFIX%%/*}"
+    echo "==> Logging in to AWS ECR ($ecr_host)"
+    aws_cli ecr get-login-password --region "$AWS_REGION" \
+      | docker login --username AWS --password-stdin "$ecr_host" >/dev/null
+    export IMAGE_PREFIX ;;
+esac
+
 echo "==> Downloading images"
 $COMPOSE pull --quiet
 

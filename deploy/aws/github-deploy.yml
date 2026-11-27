@@ -96,6 +96,28 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
+        - PolicyName: pull-images-from-ecr
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:                                 # download only, no push
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                Resource:
+                  - !GetAtt EcrServiceRegistry.Arn
+                  - !GetAtt EcrAccessService.Arn
+                  - !GetAtt EcrApiGateway.Arn
+                  - !GetAtt EcrAdminService.Arn
+                  - !GetAtt EcrBusinessService.Arn
+                  - !GetAtt EcrNotificationService.Arn
+                  - !GetAtt EcrAdminPortal.Arn
+                  - !GetAtt EcrProviderPortal.Arn
+                  - !GetAtt EcrPatientPortal.Arn
         - PolicyName: read-own-secret
           PolicyDocument:
             Version: "2012-10-17"
@@ -118,6 +140,138 @@ Resources:
       InstanceProfileName: multi-tenant-server
       Roles: [!Ref ServerRole]
 
+  # --- 4. Private image storage (ECR): one repository per image, instead of Docker Hub. ---
+  # Only our AWS account can see or use them; access is by IAM role, no password.
+  # "Scan on push" checks every new image for known security problems, and old
+  # images are removed automatically so storage cost stays tiny.
+  EcrServiceRegistry:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/service-registry
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrAccessService:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/access-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrApiGateway:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/api-gateway
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrAdminService:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/admin-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrBusinessService:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/business-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrNotificationService:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/notification-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrAdminPortal:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/admin-portal
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrProviderPortal:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/provider-portal
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+  EcrPatientPortal:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kaycare/patient-portal
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the newest 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}
+
+  # --- 5. The role the GitHub BUILD job becomes: may only push images to these repositories. ---
+  GitHubEcrPushRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-ecr-push
+      Description: Used by GitHub Actions (main branch) to push images to ECR
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+      Policies:
+        - PolicyName: push-images-to-kaycare-repositories
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken      # the login step; AWS allows it only on "*"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource:
+                  - !GetAtt EcrServiceRegistry.Arn
+                  - !GetAtt EcrAccessService.Arn
+                  - !GetAtt EcrApiGateway.Arn
+                  - !GetAtt EcrAdminService.Arn
+                  - !GetAtt EcrBusinessService.Arn
+                  - !GetAtt EcrNotificationService.Arn
+                  - !GetAtt EcrAdminPortal.Arn
+                  - !GetAtt EcrProviderPortal.Arn
+                  - !GetAtt EcrPatientPortal.Arn
+
 Outputs:
   DeployRoleArn:
     Description: Put this in GitHub -> Settings -> Variables as AWS_DEPLOY_ROLE_ARN
@@ -125,3 +279,9 @@ Outputs:
   ServerInstanceProfile:
     Description: Attach this to the EC2 server (Actions -> Security -> Modify IAM role)
     Value: !Ref ServerInstanceProfile
+  EcrPushRoleArn:
+    Description: Put this in GitHub -> Settings -> Variables as AWS_ECR_PUSH_ROLE_ARN
+    Value: !GetAtt GitHubEcrPushRole.Arn
+  ImagePrefix:
+    Description: Put this in the server's ~/app/.env as IMAGE_PREFIX (where the server downloads images from)
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/kaycare
